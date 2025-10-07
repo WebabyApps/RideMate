@@ -1,3 +1,52 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "hero-1",
+      "description": "A scenic road trip with friends in a car.",
+      "imageUrl": "https://images.unsplash.com/photo-1615927107613-d59c2499ba05?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw4fHxyb2FkJTIwdHJpcHxlbnwwfHx8fDE3NTk3Mzc1MDh8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "road trip"
+    },
+    {
+      "id": "user-1",
+      "description": "Portrait of a smiling woman.",
+      "imageUrl": "https://picsum.photos/seed/user1/200/200",
+      "imageHint": "woman smiling"
+    },
+    {
+      "id": "user-2",
+      "description": "Portrait of a man with glasses.",
+      "imageUrl": "https://picsum.photos/seed/user2/200/200",
+      "imageHint": "man glasses"
+    },
+    {
+      "id": "user-3",
+      "description": "Portrait of a person looking friendly.",
+      "imageUrl": "https://picsum.photos/seed/user3/200/200",
+      "imageHint": "person friendly"
+    },
+    {
+      "id": "user-4",
+      "description": "Portrait of a smiling man.",
+      "imageUrl": "https://picsum.photos/seed/user4/200/200",
+      "imageHint": "man smiling"
+    },
+    {
+      "id": "user-5",
+      "description": "Portrait of a woman outdoors.",
+      "imageUrl": "https://picsum.photos/seed/user5/200/200",
+      "imageHint": "woman outdoors"
+    },
+    {
+      "id": "user-6",
+      "description": "Portrait of a person in the city.",
+      "imageUrl": "https://picsum.photos/seed/user6/200/200",
+      "imageHint": "person city"
+    },
+    {
+      "id": "map-placeholder",
+      "description": "A placeholder image of a map.",
+      "imageUrl": "https://images.unsplash.com/photo-1717700299601-258e1906b7d5?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw2fHxtYXAlMjBjaXR5fGVufDB8fHx8MTc1OTc0MzcyMHww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "map city"
+    }
+  ]
 }

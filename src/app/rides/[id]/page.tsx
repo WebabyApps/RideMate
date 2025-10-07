@@ -1,0 +1,131 @@
+import { rides, users } from "@/lib/mock-data";
+import { notFound } from "next/navigation";
+import Image from "next/image";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { StarRating } from "@/components/star-rating";
+import { PlaceHolderImages } from "@/lib/placeholder-images";
+import { Separator } from "@/components/ui/separator";
+import { MapPin, Calendar, Clock, Users, DollarSign, MessageSquare } from "lucide-react";
+import { format } from 'date-fns';
+
+export default function RideDetailPage({ params }: { params: { id: string } }) {
+  const ride = rides.find(r => r.id === params.id);
+  const mapImage = PlaceHolderImages.find(p => p.id === 'map-placeholder');
+
+  if (!ride) {
+    notFound();
+  }
+
+  const { driver } = ride;
+
+  return (
+    <div className="container mx-auto max-w-5xl px-4 md:px-6 py-8">
+      <div className="grid md:grid-cols-3 gap-8">
+        <div className="md:col-span-2 space-y-8">
+          <Card>
+            <CardHeader>
+              <CardTitle className="font-headline text-3xl">{ride.origin} to {ride.destination}</CardTitle>
+              <CardDescription className="flex items-center gap-4 pt-2">
+                 <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4" />
+                    <span>{format(ride.departureTime, 'EEEE, MMMM d, yyyy')}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4" />
+                    <span>at {format(ride.departureTime, 'p')}</span>
+                </div>
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {mapImage && (
+                <div className="relative w-full h-64 md:h-96 rounded-lg overflow-hidden border">
+                  <Image
+                    src={mapImage.imageUrl}
+                    alt="Route map"
+                    data-ai-hint={mapImage.imageHint}
+                    fill
+                    className="object-cover"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="font-headline">Ride Details</CardTitle>
+            </CardHeader>
+            <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                <div className="flex flex-col items-center text-center">
+                    <Users className="w-8 h-8 text-primary mb-2" />
+                    <p className="font-semibold">{ride.availableSeats} of {ride.totalSeats} Seats Left</p>
+                </div>
+                 <div className="flex flex-col items-center text-center">
+                    <DollarSign className="w-8 h-8 text-accent mb-2" />
+                    <p className="font-semibold text-2xl">${ride.price.toFixed(2)}</p>
+                    <p className="text-sm text-muted-foreground">per seat</p>
+                </div>
+                 <div className="flex flex-col items-center text-center">
+                    <MapPin className="w-8 h-8 text-primary mb-2" />
+                    <p className="font-semibold">Origin</p>
+                    <p className="text-sm text-muted-foreground">{ride.origin}</p>
+                </div>
+                <div className="flex flex-col items-center text-center">
+                    <MapPin className="w-8 h-8 text-accent mb-2" />
+                    <p className="font-semibold">Destination</p>
+                    <p className="text-sm text-muted-foreground">{ride.destination}</p>
+                </div>
+            </CardContent>
+          </Card>
+
+        </div>
+        <div className="space-y-6">
+          <Card className="text-center">
+            <CardHeader>
+              <CardTitle className="font-headline">Driver</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col items-center gap-4">
+              <Avatar className="w-24 h-24 border-4 border-primary">
+                <AvatarImage src={driver.avatarUrl} alt={driver.name} />
+                <AvatarFallback>{driver.name.charAt(0)}</AvatarFallback>
+              </Avatar>
+              <div className="text-center">
+                <p className="font-bold text-xl">{driver.name}</p>
+                <StarRating rating={driver.rating} className="justify-center mt-1" />
+                <p className="text-sm text-muted-foreground mt-1">Member since {format(driver.memberSince, 'MMMM yyyy')}</p>
+              </div>
+              <Button variant="outline" className="w-full">
+                <MessageSquare className="w-4 h-4 mr-2" /> Message {driver.name}
+              </Button>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="font-headline">Passengers</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {ride.passengers.length > 0 ? (
+                <div className="flex -space-x-2">
+                  {ride.passengers.map(p => (
+                    <Avatar key={p.id} className="border-2 border-card">
+                      <AvatarImage src={p.avatarUrl} alt={p.name} />
+                       <AvatarFallback>{p.name.charAt(0)}</AvatarFallback>
+                    </Avatar>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No passengers have booked yet.</p>
+              )}
+            </CardContent>
+          </Card>
+           <div className="sticky top-24">
+            <Button size="lg" className="w-full text-lg font-bold bg-accent hover:bg-accent/90 text-accent-foreground">Book a Seat</Button>
+           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
