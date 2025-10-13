@@ -13,6 +13,7 @@ import { useDoc, useUser, useFirestore, updateDocumentNonBlocking, useMemoFireba
 import { doc, arrayUnion } from "firebase/firestore";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
+import { useEffect } from "react";
 
 function DriverInfo({ driverId }: { driverId: string }) {
   const firestore = useFirestore();
@@ -84,6 +85,13 @@ export default function RideDetailPage() {
   }, [firestore, rideId]);
 
   const { data: ride, isLoading: isRideLoading } = useDoc(rideDocRef);
+  
+  useEffect(() => {
+    if (!isRideLoading && !ride) {
+      notFound();
+    }
+  }, [isRideLoading, ride]);
+
 
   const handleBookSeat = () => {
     if (!user) {
@@ -113,7 +121,7 @@ export default function RideDetailPage() {
     });
   };
 
-  if (isRideLoading) {
+  if (isRideLoading || !ride) {
     return (
         <div className="container mx-auto max-w-5xl px-4 md:px-6 py-8">
             <div className="grid md:grid-cols-3 gap-8">
@@ -130,15 +138,6 @@ export default function RideDetailPage() {
         </div>
     );
   }
-
-  // Only call notFound if loading is finished and there's still no ride
-  if (!isRideLoading && !ride) {
-    notFound();
-  }
-
-  // If we reach here, ride must be defined.
-  if (!ride) return null;
-
 
   return (
     <div className="container mx-auto max-w-5xl px-4 md:px-6 py-8">
@@ -203,7 +202,7 @@ export default function RideDetailPage() {
 
         </div>
         <div className="space-y-6">
-          <DriverInfo driverId={ride.offererId} />
+          {ride.offererId && <DriverInfo driverId={ride.offererId} />}
           <Card>
             <CardHeader>
               <CardTitle className="font-headline">Passengers</CardTitle>
