@@ -10,22 +10,24 @@ import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { MapPin, Calendar, Clock, Users, DollarSign, MessageSquare } from "lucide-react";
 import { format } from 'date-fns';
 import { useDoc, useUser, useFirestore, updateDocumentNonBlocking, useMemoFirebase } from "@/firebase";
-import { doc, arrayUnion, collection } from "firebase/firestore";
+import { doc, arrayUnion } from "firebase/firestore";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
 import { useEffect } from "react";
 
 function DriverInfo({ driverId }: { driverId: string }) {
   const firestore = useFirestore();
-  const { user, isUserLoading } = useUser();
+  const { isUserLoading } = useUser();
 
   const driverDocRef = useMemoFirebase(() => {
-    if (!driverId || !firestore || isUserLoading) return null;
+    // Only create the reference if auth check is complete and we have a driverId.
+    if (isUserLoading || !firestore || !driverId) return null;
     return doc(firestore, 'users', driverId);
   }, [firestore, driverId, isUserLoading]);
+
   const { data: driver, isLoading: isDriverLoading } = useDoc(driverDocRef);
 
-  if (isDriverLoading || isUserLoading) {
+  if (isUserLoading || isDriverLoading) {
     return (
         <Card className="text-center">
             <CardHeader>
@@ -44,7 +46,13 @@ function DriverInfo({ driverId }: { driverId: string }) {
   }
 
   if (!driver) {
-    return null;
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Driver Not Found</CardTitle>
+        </CardHeader>
+      </Card>
+    );
   }
 
   return (
@@ -88,7 +96,6 @@ export default function RideDetailPage() {
   
   useEffect(() => {
     // Only check for notFound after the initial loading is complete.
-    // This prevents a premature 404 during client-side hydration.
     if (!isRideLoading && !ride) {
       // Use a timeout to ensure we don't call notFound during the same render cycle
       // as the loading state change, which can cause issues with Next.js App Router.
@@ -164,7 +171,7 @@ export default function RideDetailPage() {
                 </div>
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-0">
               {mapImage && (
                 <div className="relative w-full h-64 md:h-96 rounded-lg overflow-hidden border">
                   <Image
@@ -184,7 +191,7 @@ export default function RideDetailPage() {
             <CardHeader>
               <CardTitle className="font-headline">Ride Details</CardTitle>
             </CardHeader>
-            <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <CardContent className="pt-0 grid grid-cols-2 md:grid-cols-4 gap-6">
                 <div className="flex flex-col items-center text-center">
                     <Users className="w-8 h-8 text-primary mb-2" />
                     <p className="font-semibold">{ride.availableSeats} of {ride.totalSeats} Seats Left</p>
@@ -214,7 +221,7 @@ export default function RideDetailPage() {
             <CardHeader>
               <CardTitle className="font-headline">Passengers</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-0">
               {ride.riderIds && ride.riderIds.length > 0 ? (
                 <p>{ride.riderIds.length} passenger(s) booked.</p>
               ) : (
@@ -232,3 +239,5 @@ export default function RideDetailPage() {
     </div>
   );
 }
+
+    

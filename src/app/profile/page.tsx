@@ -62,13 +62,14 @@ export default function ProfilePage() {
   });
 
   const userDocRef = useMemoFirebase(() => {
-    if (isUserLoading || !user) return null;
+    // Only create the reference if auth check is complete and we have a user.
+    if (isUserLoading || !user || !firestore) return null;
     return doc(firestore, 'users', user.uid);
   }, [firestore, user, isUserLoading]);
   const { data: userProfile, isLoading: isProfileLoading } = useDoc(userDocRef);
 
   const userRidesQuery = useMemoFirebase(() => {
-    if (isUserLoading || !user) return null;
+    if (isUserLoading || !user || !firestore) return null;
     return query(collection(firestore, 'rides'), where('offererId', '==', user.uid));
   }, [firestore, user, isUserLoading]);
   const { data: userRides, isLoading: areRidesLoading } = useCollection(userRidesQuery);
@@ -105,7 +106,7 @@ export default function ProfilePage() {
     setProfileDialogOpen(false);
   }
 
-  if (isUserLoading || isProfileLoading || !user) {
+  if (isUserLoading || isProfileLoading || !userProfile) {
     return (
         <div className="container mx-auto max-w-5xl px-4 md:px-6 py-8">
             <div className="grid md:grid-cols-3 gap-8">
@@ -114,7 +115,7 @@ export default function ProfilePage() {
                         <CardHeader>
                             <Skeleton className="w-32 h-32 rounded-full mx-auto" />
                         </CardHeader>
-                        <CardContent className="space-y-4">
+                        <CardContent className="pt-0 space-y-4">
                             <Skeleton className="h-8 w-48 mx-auto" />
                             <Skeleton className="h-5 w-24 mx-auto" />
                             <Separator />
@@ -132,7 +133,7 @@ export default function ProfilePage() {
                             <CardTitle className="font-headline">Your Rides</CardTitle>
                             <CardDescription>Rides you are currently offering.</CardDescription>
                         </CardHeader>
-                        <CardContent>
+                        <CardContent className="pt-0">
                            <Skeleton className="h-24 w-full" />
                         </CardContent>
                     </Card>
@@ -153,7 +154,7 @@ export default function ProfilePage() {
                   <AvatarFallback>{userProfile?.firstName?.charAt(0)}</AvatarFallback>
                 </Avatar>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="pt-0 space-y-4">
               <div>
                   <CardTitle className="font-headline text-3xl">{`${userProfile?.firstName} ${userProfile?.lastName}`}</CardTitle>
                   <StarRating rating={userProfile?.rating || 0} className="justify-center mt-2" starClassName="w-5 h-5" />
@@ -162,7 +163,7 @@ export default function ProfilePage() {
               <div className="text-left space-y-2 text-muted-foreground">
                   <div className="flex items-center gap-3">
                       <Calendar className="w-4 h-4" />
-                      <span>Member since {user.metadata.creationTime ? format(new Date(user.metadata.creationTime), 'MMMM yyyy') : ''}</span>
+                      <span>Member since {user?.metadata.creationTime ? format(new Date(user.metadata.creationTime), 'MMMM yyyy') : ''}</span>
                   </div>
                   <div className="flex items-center gap-3">
                       <Mail className="w-4 h-4" />
@@ -216,7 +217,7 @@ export default function ProfilePage() {
               <CardTitle className="font-headline">Your Rides</CardTitle>
               <CardDescription>Rides you are currently offering.</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-0">
               {areRidesLoading ? (
                  <Skeleton className="h-24 w-full" />
               ) : userRides && userRides.length > 0 ? (
