@@ -62,7 +62,6 @@ export default function ProfilePage() {
   });
 
   const userDocRef = useMemoFirebase(() => {
-    // CRITICAL: Wait for auth check to complete before creating the ref.
     if (isUserLoading || !user || !firestore) return null;
     return doc(firestore, 'users', user.uid);
   }, [firestore, user, isUserLoading]);
@@ -108,7 +107,6 @@ export default function ProfilePage() {
     setProfileDialogOpen(false);
   }
 
-  // Combine loading states for a single skeleton view
   const isLoading = isUserLoading || isProfileLoading;
 
   if (isLoading || !userProfile) {
