@@ -10,7 +10,7 @@ import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { MapPin, Calendar, Clock, Users, DollarSign, MessageSquare } from "lucide-react";
 import { format } from 'date-fns';
 import { useDoc, useUser, useFirestore, updateDocumentNonBlocking, useMemoFirebase } from "@/firebase";
-import { doc, arrayUnion } from "firebase/firestore";
+import { doc, arrayUnion, collection } from "firebase/firestore";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
 import { useEffect } from "react";
@@ -44,7 +44,7 @@ function DriverInfo({ driverId }: { driverId: string }) {
   }
 
   if (!driver) {
-    return null; 
+    return null;
   }
 
   return (
@@ -87,10 +87,17 @@ export default function RideDetailPage() {
   const { data: ride, isLoading: isRideLoading } = useDoc(rideDocRef);
   
   useEffect(() => {
+    // Only check for notFound after the initial loading is complete.
+    // This prevents a premature 404 during client-side hydration.
     if (!isRideLoading && !ride) {
-      notFound();
+      // Use a timeout to ensure we don't call notFound during the same render cycle
+      // as the loading state change, which can cause issues with Next.js App Router.
+      const timer = setTimeout(() => {
+        notFound();
+      }, 0);
+      return () => clearTimeout(timer);
     }
-  }, [isRideLoading, ride]);
+  }, [isRideLoading, ride, notFound]);
 
 
   const handleBookSeat = () => {
