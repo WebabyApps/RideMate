@@ -1,138 +1,77 @@
+/**
+ * @file Firestore Security Rules
+ * @description This ruleset enforces a role-based access control model for the RideMate application.
+ *
+ * Data Structure:
+ * - /users/{userId}: Stores user profiles. Only the user themselves can read/write their profile.
+ * - /rides: Stores all ride data. Rides are publicly readable, but creation, updates, and deletion are restricted to the ride offerer.
+ * - /rides/{rideId}/ratings: Stores ratings for a specific ride. Only authenticated users can create ratings.
+ *
+ * Key Security Decisions:
+ * - Users can only manage their own profiles.
+ * - Rides are publicly visible to facilitate discovery.
+ * - Rides can be created by any authenticated user.
+ * - Only ride offerers can modify/delete rides.
+ */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Protects the root of the database by requiring authentication.
-     * @path /databases/{database}/documents
-     * @allow get, list: if false;
-     * @allow create, update, delete: if false;
-     * @principle Requires authentication for all database access.
-     */
-    match /{document=**} {
-      allow read, write: if false;
-    }
-
-    /**
-     * @description Manages user profiles. Only the authenticated user can read and write their own profile.
+     * @description Allows users to manage their own profiles.
      * @path /users/{userId}
-     * @allow get: if isOwner(userId);
-     * @allow list: if false;
-     * @allow create: if isOwner(userId);
-     * @allow update: if isExistingOwner(userId);
-     * @allow delete: if isExistingOwner(userId);
-     * @principle Enforces document ownership for user profiles.
+     * @allow (get, create, update, delete) User with ID 'user123' can access /users/user123.
+     * @deny (get, create, update, delete) User with ID 'user456' cannot access /users/user123.
+     * @principle Enforces document ownership for all operations.
      */
     match /users/{userId} {
       allow get: if isOwner(userId);
       allow list: if false;
       allow create: if isOwner(userId);
-      allow update: if isOwner(userId) && isExistingOwner(userId);
-      allow delete: if isOwner(userId) && isExistingOwner(userId);
+      allow update: if isOwner(userId) && resource != null;
+      allow delete: if isOwner(userId) && resource != null;
     }
 
     /**
-     * @description Manages rides offered by a specific user. Only the offering user can read, create, update, and delete rides.
-     * @path /users/{userId}/rides/{rideId}
-     * @allow get: if isRideOfferedByUser(userId, rideId);
-     * @allow list: if isOwner(userId);
-     * @allow create: if isOwner(userId) && request.resource.data.offererId == userId;
-     * @allow update: if isExistingRideOfferedByUser(userId, rideId) && request.resource.data.offererId == resource.data.offererId;
-     * @allow delete: if isExistingRideOfferedByUser(userId, rideId);
-     * @principle Enforces document ownership for rides.
+     * @description Allows public read access to rides, but restricts write access to the ride offerer.
+     * @path /rides
+     * @allow (get, list) Any user can read ride data.
+     * @allow (create) User 'user123' can create a ride with offererId 'user123'.
+     * @allow (update, delete) User 'user123' can update/delete a ride where resource.data.offererId == 'user123'.
+     * @deny (create) User 'user123' cannot create a ride with offererId 'user456'.
+     * @deny (update, delete) User 'user456' cannot update/delete a ride where resource.data.offererId == 'user123'.
+     * @principle Allows public read access while enforcing document ownership for writes.
      */
-    match /users/{userId}/rides/{rideId} {
-      allow get: if isRideOfferedByUser(userId, rideId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId) && request.resource.data.offererId == userId;
-      allow update: if isRideOfferedByUser(userId, rideId) && isExistingRideOfferedByUser(userId, rideId) && request.resource.data.offererId == resource.data.offererId;
-      allow delete: if isRideOfferedByUser(userId, rideId) && isExistingRideOfferedByUser(userId, rideId);
+    match /rides/{rideId} {
+      allow get, list: if true;
+      allow create: if isSignedIn() && request.resource.data.offererId == request.auth.uid;
+      allow update: if isExistingOwner(resource.data.offererId);
+      allow delete: if isExistingOwner(resource.data.offererId);
     }
 
     /**
-     * @description Manages ratings for a specific ride. Only the rater can read, create, update, and delete ratings.
-     * @path /users/{userId}/rides/{rideId}/ratings/{ratingId}
-     * @allow get: if isRatingCreatedByUser(userId, rideId, ratingId);
-     * @allow list: if isRideOfferedByUser(userId, rideId);
-     * @allow create: if isOwner(userId) && request.resource.data.raterId == request.auth.uid;
-     * @allow update: if isExistingRatingCreatedByUser(userId, rideId, ratingId) && request.resource.data.raterId == resource.data.raterId;
-     * @allow delete: if isExistingRatingCreatedByUser(userId, rideId, ratingId);
-     * @principle Enforces document ownership for ratings.
+     * @description Allows authenticated users to create ratings for a specific ride.
+     * @path /rides/{rideId}/ratings/{ratingId}
+     * @allow (create) User 'user123' can create a rating for ride 'ride456'.
+     * @deny (create) Unauthenticated user cannot create a rating.
+     * @principle Requires authentication for rating creation.
      */
-    match /users/{userId}/rides/{rideId}/ratings/{ratingId} {
-      allow get: if isRatingCreatedByUser(userId, rideId, ratingId);
-      allow list: if isRideOfferedByUser(userId, rideId);
-      allow create: if isSignedIn() && request.resource.data.raterId == request.auth.uid;
-      allow update: if isRatingCreatedByUser(userId, rideId, ratingId) && isExistingRatingCreatedByUser(userId, rideId, ratingId) && request.resource.data.raterId == resource.data.raterId;
-      allow delete: if isRatingCreatedByUser(userId, rideId, ratingId) && isExistingRatingCreatedByUser(userId, rideId, ratingId);
+    match /rides/{rideId}/ratings/{ratingId} {
+      allow get, list: if true;
+      allow create: if isSignedIn();
+      allow update, delete: if false;
     }
 
-    /**
-     * @description Helper function to check if the user is signed in.
-     * @return {bool} True if the user is signed in, false otherwise.
-     */
     function isSignedIn() {
       return request.auth != null;
     }
 
-    /**
-     * @description Helper function to check if the authenticated user is the owner of the document.
-     * @param {string} userId The user ID to check against.
-     * @return {bool} True if the user is the owner, false otherwise.
-     */
     function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+      return request.auth.uid == userId;
     }
 
-    /**
-     * @description Helper function to check if the authenticated user is the owner of an existing document.
-     * @param {string} userId The user ID to check against.
-     * @return {bool} True if the user is the owner and the document exists, false otherwise.
-     */
-    function isExistingOwner(userId) {
-      return exists(/databases/$(database)/documents/users/$(userId));
-    }
-
-    /**
-     * @description Helper function to check if the authenticated user is the offerer of a ride.
-     * @param {string} userId The user ID to check against.
-     * @param {string} rideId The ride ID.
-     * @return {bool} True if the user is the offerer, false otherwise.
-     */
-    function isRideOfferedByUser(userId, rideId) {
-        return isSignedIn() && resource.data.offererId == userId;
-    }
-
-      /**
-       * @description Helper function to check if the authenticated user is the offerer of an existing ride.
-       * @param {string} userId The user ID to check against.
-       * @param {string} rideId The ride ID.
-       * @return {bool} True if the user is the offerer and the document exists, false otherwise.
-       */
-    function isExistingRideOfferedByUser(userId, rideId) {
-        return exists(/databases/$(database)/documents/users/$(userId)/rides/$(rideId));
-    }
-
-    /**
-     * @description Helper function to check if the authenticated user created the rating
-     * @param {string} userId The user ID of ride offerer
-     * @param {string} rideId The ride ID
-     * @param {string} ratingId The rating ID
-     * @return {bool} True if the user created the rating, false otherwise.
-     */
-    function isRatingCreatedByUser(userId, rideId, ratingId) {
-        return isSignedIn() && resource.data.raterId == request.auth.uid;
-    }
-
-    /**
-     * @description Helper function to check if the authenticated user created the rating and the document exists.
-     * @param {string} userId The user ID of ride offerer
-     * @param {string} rideId The ride ID
-     * @param {string} ratingId The rating ID
-     * @return {bool} True if the user created the rating and the document exists, false otherwise.
-     */
-    function isExistingRatingCreatedByUser(userId, rideId, ratingId) {
-        return exists(/databases/$(database)/documents/users/$(userId)/rides/$(rideId)/ratings/$(ratingId));
+    function isExistingOwner(ownerId) {
+        return request.auth.uid == ownerId && resource != null;
     }
   }
 }
