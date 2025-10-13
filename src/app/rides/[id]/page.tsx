@@ -97,7 +97,7 @@ export default function RideDetailPage() {
       }, 0);
       return () => clearTimeout(timer);
     }
-  }, [isRideLoading, ride, notFound]);
+  }, [isRideLoading, ride]);
 
 
   const handleBookSeat = () => {
