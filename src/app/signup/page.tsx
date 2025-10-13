@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useEffect } from "react";
 import { doc } from 'firebase/firestore';
+import { useToast } from "@/hooks/use-toast";
 
 import { Button } from "@/components/ui/button"
 import {
@@ -41,6 +42,7 @@ export default function SignupPage() {
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
   const router = useRouter();
+  const { toast } = useToast();
 
   const form = useForm<z.infer<typeof signupSchema>>({
     resolver: zodResolver(signupSchema),
@@ -57,12 +59,10 @@ export default function SignupPage() {
     }
   }, [user, isUserLoading, router]);
 
-  async function onSubmit(data: z.infer<typeof signupSchema>) {
-    try {
-      const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
-      const user = userCredential.user;
-
-      if (user) {
+  function onSubmit(data: z.infer<typeof signupSchema>) {
+    createUserWithEmailAndPassword(auth, data.email, data.password)
+      .then(userCredential => {
+        const user = userCredential.user;
         const [firstName, ...lastName] = data.fullName.split(' ');
         const userProfile = {
           id: user.uid,
@@ -70,15 +70,26 @@ export default function SignupPage() {
           lastName: lastName.join(' ') || '',
           email: user.email,
           phoneNumber: user.phoneNumber || '',
+          rating: 0,
+          avatarUrl: `https://picsum.photos/seed/${user.uid}/200/200`
         };
         
         const userDocRef = doc(firestore, "users", user.uid);
+        // This is a non-blocking call
         setDocumentNonBlocking(userDocRef, userProfile, { merge: true });
-      }
-    } catch (error) {
-      console.error("Error signing up:", error);
-      // You can show a toast or an error message to the user here
-    }
+
+        // Since we don't wait, we can navigate right away.
+        // The onAuthStateChanged listener will eventually pick up the new user
+        // and the profile page will render correctly.
+      })
+      .catch((error) => {
+        console.error("Error signing up:", error);
+        toast({
+            variant: "destructive",
+            title: "Sign Up Failed",
+            description: error.message || "An unexpected error occurred during sign up.",
+        });
+      });
   }
   
   if (isUserLoading || user) {
