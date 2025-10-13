@@ -24,7 +24,7 @@ function DriverInfo({ driverId }: { driverId: string }) {
   }, [firestore, driverId, isUserLoading]);
   const { data: driver, isLoading: isDriverLoading } = useDoc(driverDocRef);
 
-  if (isDriverLoading) {
+  if (isDriverLoading || isUserLoading) {
     return (
         <Card className="text-center">
             <CardHeader>
@@ -43,7 +43,7 @@ function DriverInfo({ driverId }: { driverId: string }) {
   }
 
   if (!driver) {
-    return null; // Or some fallback UI
+    return null; 
   }
 
   return (
@@ -128,9 +128,14 @@ export default function RideDetailPage({ params }: { params: { id: string } }) {
     );
   }
 
-  if (!ride) {
+  // Only call notFound if loading is finished and there's still no ride
+  if (!isRideLoading && !ride) {
     notFound();
   }
+
+  // If we reach here, ride must be defined.
+  if (!ride) return null;
+
 
   return (
     <div className="container mx-auto max-w-5xl px-4 md:px-6 py-8">
