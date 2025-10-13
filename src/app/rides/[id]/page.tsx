@@ -1,19 +1,18 @@
 'use client';
 
-import { notFound, useRouter, useParams } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import Image from "next/image";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { StarRating } from "@/components/star-rating";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
-import { MapPin, Calendar, Clock, Users, DollarSign, MessageSquare } from "lucide-react";
+import { MapPin, Calendar, Clock, Users, DollarSign, MessageSquare, AlertCircle } from "lucide-react";
 import { format } from 'date-fns';
 import { useDoc, useUser, useFirestore, updateDocumentNonBlocking, useMemoFirebase } from "@/firebase";
 import { doc, arrayUnion } from "firebase/firestore";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
-import { useEffect } from "react";
 
 function DriverInfo({ driverId }: { driverId: string }) {
   const firestore = useFirestore();
@@ -94,19 +93,14 @@ export default function RideDetailPage() {
   }, [firestore, rideId]);
 
   const { data: ride, isLoading: isRideLoading } = useDoc(rideDocRef);
-  
-  useEffect(() => {
-    if (!isRideLoading && !ride) {
-        notFound();
-    }
-  }, [isRideLoading, ride]);
-
 
   const handleBookSeat = () => {
     if (!user) {
       router.push('/login');
       return;
     }
+
+    if (!rideDocRef || !ride) return;
 
     if (ride?.riderIds?.includes(user.uid) || ride?.offererId === user.uid) {
         toast({
@@ -116,8 +110,6 @@ export default function RideDetailPage() {
         });
         return;
     }
-    
-    if (!rideDocRef || !ride) return;
 
     updateDocumentNonBlocking(rideDocRef, {
         riderIds: arrayUnion(user.uid),
@@ -132,7 +124,7 @@ export default function RideDetailPage() {
 
   const isLoading = isRideLoading || isUserLoading;
 
-  if (isLoading || !ride) {
+  if (isLoading) {
     return (
         <div className="container mx-auto max-w-5xl px-4 md:px-6 py-8">
             <div className="grid md:grid-cols-3 gap-8">
@@ -148,6 +140,21 @@ export default function RideDetailPage() {
             </div>
         </div>
     );
+  }
+
+  if (!ride) {
+    return (
+        <div className="container mx-auto max-w-2xl px-4 md:px-6 py-12 text-center">
+            <Card className="p-8">
+                <AlertCircle className="mx-auto h-12 w-12 text-destructive" />
+                <h1 className="mt-4 text-3xl font-bold tracking-tight text-foreground sm:text-5xl">Ride Not Found</h1>
+                <p className="mt-6 text-base leading-7 text-muted-foreground">Sorry, we couldn’t find the ride you’re looking for.</p>
+                <div className="mt-10 flex items-center justify-center gap-x-6">
+                    <Button onClick={() => router.push('/rides')}>Go back to rides</Button>
+                </div>
+            </Card>
+        </div>
+    )
   }
 
   return (
