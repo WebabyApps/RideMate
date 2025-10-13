@@ -1,6 +1,6 @@
 'use client';
 
-import { useFormState, useFormStatus } from 'react-dom';
+import { useActionState, useFormStatus } from 'react';
 import { optimizeRouteAction, type FormState } from './actions';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -35,7 +35,7 @@ function SubmitButton() {
 }
 
 export default function OptimizeRoutePage() {
-  const [state, formAction] = useFormState(optimizeRouteAction, initialState);
+  const [state, formAction] = useActionState(optimizeRouteAction, initialState);
 
   useEffect(() => {
     if (state.status === 'error') {
