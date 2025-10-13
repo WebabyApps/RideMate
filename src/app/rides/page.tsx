@@ -19,6 +19,7 @@ export default function RidesPage() {
   const firestore = useFirestore();
 
   const ridesQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
     return query(collection(firestore, 'rides'), orderBy('departureTime', 'asc'));
   }, [firestore]);
 
@@ -73,14 +74,12 @@ export default function RidesPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {isLoading && (
           <>
-            <Skeleton className="h-96 w-full" />
-            <Skeleton className="h-96 w-full" />
-            <Skeleton className="h-96 w-full" />
+            <Skeleton className="h-[28rem] w-full" />
+            <Skeleton className="h-[28rem] w-full" />
+            <Skeleton className="h-[28rem] w-full" />
           </>
         )}
         {rides && rides.map(ride => (
-          // This will cause an error for now as RideCard expects a different data structure
-          // We will fix this in a later step by fetching driver data for each ride.
           <RideCard key={ride.id} ride={ride} />
         ))}
       </div>

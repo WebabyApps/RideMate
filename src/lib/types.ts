@@ -8,7 +8,7 @@ export type User = {
 
 export type Ride = {
   id: string;
-  driver: User;
+  offererId: string;
   origin: string;
   destination: string;
   departureTime: Date;
