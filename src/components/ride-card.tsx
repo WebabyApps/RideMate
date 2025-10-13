@@ -5,7 +5,7 @@ import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowRight, MapPin, Calendar, Clock, Users, DollarSign } from 'lucide-react';
 import { format } from 'date-fns';
-import { useDoc, useFirestore, useMemoFirebase } from '@/firebase';
+import { useDoc, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { Skeleton } from './ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
@@ -17,15 +17,16 @@ type RideCardProps = {
 
 function RideDriverInfo({ offererId }: { offererId: string }) {
     const firestore = useFirestore();
+    const { isUserLoading } = useUser();
 
     const driverDocRef = useMemoFirebase(() => {
-        if (!offererId) return null;
+        if (!offererId || !firestore || isUserLoading) return null;
         return doc(firestore, 'users', offererId);
-    }, [firestore, offererId]);
+    }, [firestore, offererId, isUserLoading]);
 
     const { data: driver, isLoading: isDriverLoading } = useDoc(driverDocRef);
 
-    if (isDriverLoading) {
+    if (isDriverLoading || isUserLoading) {
         return (
              <div className="flex items-center gap-4 p-6">
                 <Skeleton className="h-10 w-10 rounded-full" />
