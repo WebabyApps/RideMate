@@ -19,13 +19,13 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useToast } from "@/hooks/use-toast";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { CalendarIcon } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { useFirestore, useUser, addDocumentNonBlocking } from "@/firebase";
+import { useToast } from "@/hooks/use-toast";
 
 const rideSchema = z.object({
   origin: z.string().min(3, "Origin must be at least 3 characters long."),
@@ -40,12 +40,14 @@ export default function OfferRidePage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
   const firestore = useFirestore();
+  const { toast } = useToast();
 
   const form = useForm<z.infer<typeof rideSchema>>({
     resolver: zodResolver(rideSchema),
     defaultValues: {
       origin: "",
       destination: "",
+      departureTime: "",
       seats: 1,
       price: 10,
     },
