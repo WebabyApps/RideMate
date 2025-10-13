@@ -3,6 +3,9 @@ import { PlaceHolderImages } from './placeholder-images';
 
 const getUserImage = (id: string) => PlaceHolderImages.find(p => p.id === id)?.imageUrl || '';
 
+// This mock data is now deprecated and will be replaced by Firestore data.
+// It's kept here for reference but is no longer used in the main application flow.
+
 export const users: User[] = [
   { id: 'u1', name: 'Sarah', avatarUrl: getUserImage('user-1'), rating: 4.9, memberSince: new Date('2022-01-15') },
   { id: 'u2', name: 'Mike', avatarUrl: getUserImage('user-2'), rating: 4.7, memberSince: new Date('2021-11-20') },

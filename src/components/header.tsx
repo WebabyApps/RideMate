@@ -3,11 +3,12 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/logo';
-import { Menu, Car } from 'lucide-react';
+import { Menu, Car, User as UserIcon, LogOut } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
+import { useAuth, useUser } from '@/firebase';
 
 const navLinks = [
   { href: '/rides', label: 'Find a Ride' },
@@ -18,6 +19,13 @@ const navLinks = [
 export function Header() {
   const pathname = usePathname();
   const [isSheetOpen, setSheetOpen] = useState(false);
+  const { user, isUserLoading } = useUser();
+  const auth = useAuth();
+
+  const handleLogout = async () => {
+    await auth.signOut();
+    setSheetOpen(false);
+  };
 
   const NavLink = ({ href, label }: { href: string; label: string }) => (
     <Link href={href} passHref>
@@ -48,12 +56,29 @@ export function Header() {
         </nav>
 
         <div className="hidden md:flex items-center gap-2">
-          <Button variant="ghost" asChild>
-            <Link href="/login">Log In</Link>
-          </Button>
-          <Button className="bg-primary hover:bg-primary/90 text-primary-foreground" asChild>
-            <Link href="/signup">Sign Up</Link>
-          </Button>
+          {isUserLoading ? (
+            <div className="h-10 w-24 animate-pulse rounded-md bg-muted" />
+          ) : user ? (
+            <>
+              <Button variant="ghost" asChild>
+                <Link href="/profile">
+                  <UserIcon className="mr-2 h-4 w-4" /> Profile
+                </Link>
+              </Button>
+              <Button variant="outline" onClick={handleLogout}>
+                <LogOut className="mr-2 h-4 w-4" /> Log Out
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="ghost" asChild>
+                <Link href="/login">Log In</Link>
+              </Button>
+              <Button className="bg-primary hover:bg-primary/90 text-primary-foreground" asChild>
+                <Link href="/signup">Sign Up</Link>
+              </Button>
+            </>
+          )}
         </div>
 
         <div className="md:hidden">
@@ -77,12 +102,27 @@ export function Header() {
                   ))}
                 </nav>
                 <div className="mt-auto flex flex-col gap-2 border-t pt-6">
-                  <Button variant="ghost" asChild>
-                    <Link href="/login" onClick={() => setSheetOpen(false)}>Log In</Link>
-                  </Button>
-                  <Button className="bg-primary hover:bg-primary/90 text-primary-foreground" asChild>
-                    <Link href="/signup" onClick={() => setSheetOpen(false)}>Sign Up</Link>
-                  </Button>
+                 {isUserLoading ? null : user ? (
+                    <>
+                      <Button variant="ghost" asChild>
+                        <Link href="/profile" onClick={() => setSheetOpen(false)}>
+                           <UserIcon className="mr-2 h-4 w-4" /> Profile
+                        </Link>
+                      </Button>
+                      <Button variant="outline" onClick={handleLogout}>
+                         <LogOut className="mr-2 h-4 w-4" /> Log Out
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                       <Button variant="ghost" asChild>
+                        <Link href="/login" onClick={() => setSheetOpen(false)}>Log In</Link>
+                      </Button>
+                      <Button className="bg-primary hover:bg-primary/90 text-primary-foreground" asChild>
+                        <Link href="/signup" onClick={() => setSheetOpen(false)}>Sign Up</Link>
+                      </Button>
+                    </>
+                  )}
                 </div>
               </div>
             </SheetContent>

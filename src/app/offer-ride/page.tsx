@@ -3,6 +3,9 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+import { collection, doc, serverTimestamp } from 'firebase/firestore';
 
 import { Button } from "@/components/ui/button";
 import {
@@ -16,12 +19,13 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { toast } from "@/hooks/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { CalendarIcon } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
+import { useFirestore, useUser, addDocumentNonBlocking } from "@/firebase";
 
 const rideSchema = z.object({
   origin: z.string().min(3, "Origin must be at least 3 characters long."),
@@ -33,6 +37,10 @@ const rideSchema = z.object({
 });
 
 export default function OfferRidePage() {
+  const { user, isUserLoading } = useUser();
+  const router = useRouter();
+  const firestore = useFirestore();
+
   const form = useForm<z.infer<typeof rideSchema>>({
     resolver: zodResolver(rideSchema),
     defaultValues: {
@@ -43,13 +51,51 @@ export default function OfferRidePage() {
     },
   });
 
+  useEffect(() => {
+    if (!isUserLoading && !user) {
+      router.push('/login');
+    }
+  }, [user, isUserLoading, router]);
+
   function onSubmit(data: z.infer<typeof rideSchema>) {
+    if (!user) {
+      toast({
+        variant: "destructive",
+        title: "Authentication Error",
+        description: "You must be logged in to offer a ride.",
+      });
+      return;
+    }
+
+    const [hours, minutes] = data.departureTime.split(':').map(Number);
+    const departureDateTime = new Date(data.departureDate);
+    departureDateTime.setHours(hours, minutes);
+
+    const ridesColRef = collection(firestore, 'rides');
+    addDocumentNonBlocking(ridesColRef, {
+      offererId: user.uid,
+      origin: data.origin,
+      destination: data.destination,
+      departureTime: departureDateTime,
+      availableSeats: data.seats,
+      cost: data.price,
+      createdAt: serverTimestamp(),
+      riderIds: [],
+    });
+
     toast({
       title: "Ride Offered!",
       description: "Your ride has been successfully posted.",
     });
-    console.log(data);
     form.reset();
+  }
+  
+  if (isUserLoading || !user) {
+    return (
+      <div className="flex items-center justify-center min-h-[calc(100vh-8rem)]">
+        <p>Loading...</p>
+      </div>
+    );
   }
 
   return (

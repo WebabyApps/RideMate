@@ -1,4 +1,5 @@
-import { rides } from "@/lib/mock-data";
+'use client';
+import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
 import { RideCard } from "@/components/ride-card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -10,9 +11,19 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
+} from "@/components/ui/select";
+import { collection, query, orderBy } from "firebase/firestore";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function RidesPage() {
+  const firestore = useFirestore();
+
+  const ridesQuery = useMemoFirebase(() => {
+    return query(collection(firestore, 'rides'), orderBy('departureTime', 'asc'));
+  }, [firestore]);
+
+  const { data: rides, isLoading } = useCollection(ridesQuery);
+
   return (
     <div className="container mx-auto px-4 md:px-6 py-8">
       <header className="mb-8 text-center">
@@ -60,7 +71,16 @@ export default function RidesPage() {
       </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {rides.map(ride => (
+        {isLoading && (
+          <>
+            <Skeleton className="h-96 w-full" />
+            <Skeleton className="h-96 w-full" />
+            <Skeleton className="h-96 w-full" />
+          </>
+        )}
+        {rides && rides.map(ride => (
+          // This will cause an error for now as RideCard expects a different data structure
+          // We will fix this in a later step by fetching driver data for each ride.
           <RideCard key={ride.id} ride={ride} />
         ))}
       </div>

@@ -1,3 +1,5 @@
+'use client';
+
 import Image from 'next/image';
 import Link from 'next/link';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,27 +9,51 @@ import { ArrowRight, MapPin, Calendar, Clock, Users, DollarSign } from 'lucide-r
 import type { Ride } from '@/lib/types';
 import { StarRating } from './star-rating';
 import { format } from 'date-fns';
+import { useDoc, useFirestore, useMemoFirebase } from '@/firebase';
+import { doc } from 'firebase/firestore';
+import { Skeleton } from './ui/skeleton';
 
 type RideCardProps = {
-  ride: Ride;
+  ride: any; // Using 'any' for now to accommodate Firestore data structure
 };
 
 export function RideCard({ ride }: RideCardProps) {
-  const { driver } = ride;
+  const firestore = useFirestore();
+
+  const driverDocRef = useMemoFirebase(() => {
+    if (!ride.offererId) return null;
+    return doc(firestore, 'users', ride.offererId);
+  }, [firestore, ride.offererId]);
+
+  const { data: driver, isLoading: isDriverLoading } = useDoc(driverDocRef);
+
+  if (isDriverLoading) {
+    return <Skeleton className="h-96 w-full" />;
+  }
   
   return (
     <Card className="flex flex-col h-full overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300">
       <CardHeader>
-        <div className="flex items-center gap-4">
-          <Avatar>
-            <AvatarImage src={driver.avatarUrl} alt={driver.name} />
-            <AvatarFallback>{driver.name.charAt(0)}</AvatarFallback>
-          </Avatar>
-          <div>
-            <p className="font-semibold">{driver.name}</p>
-            <StarRating rating={driver.rating} />
+        {driver ? (
+          <div className="flex items-center gap-4">
+            <Avatar>
+              <AvatarImage src={driver.avatarUrl} alt={driver.firstName} />
+              <AvatarFallback>{driver.firstName?.charAt(0)}</AvatarFallback>
+            </Avatar>
+            <div>
+              <p className="font-semibold">{driver.firstName} {driver.lastName}</p>
+              <StarRating rating={driver.rating || 0} />
+            </div>
           </div>
-        </div>
+        ) : (
+            <div className="flex items-center gap-4">
+                <Skeleton className="h-10 w-10 rounded-full" />
+                <div className="space-y-2">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-4 w-16" />
+                </div>
+            </div>
+        )}
       </CardHeader>
       <CardContent className="flex-grow grid gap-4">
         <div className="flex items-start gap-3">
@@ -47,11 +73,11 @@ export function RideCard({ ride }: RideCardProps) {
         <div className="grid grid-cols-2 gap-4 text-sm mt-2">
             <div className="flex items-center gap-2">
                 <Calendar className="w-4 h-4 text-muted-foreground" />
-                <span>{format(ride.departureTime, 'MMM d, yyyy')}</span>
+                <span>{ride.departureTime ? format(ride.departureTime.toDate(), 'MMM d, yyyy') : 'N/A'}</span>
             </div>
             <div className="flex items-center gap-2">
                 <Clock className="w-4 h-4 text-muted-foreground" />
-                <span>{format(ride.departureTime, 'p')}</span>
+                <span>{ride.departureTime ? format(ride.departureTime.toDate(), 'p') : 'N/A'}</span>
             </div>
             <div className="flex items-center gap-2">
                 <Users className="w-4 h-4 text-muted-foreground" />
@@ -59,7 +85,7 @@ export function RideCard({ ride }: RideCardProps) {
             </div>
             <div className="flex items-center gap-2">
                 <DollarSign className="w-4 h-4 text-muted-foreground" />
-                <span className="font-bold text-lg text-accent">{ride.price.toFixed(2)}</span>
+                <span className="font-bold text-lg text-accent">{ride.cost.toFixed(2)}</span>
             </div>
         </div>
       </CardContent>
