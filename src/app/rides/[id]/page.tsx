@@ -7,13 +7,67 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { StarRating } from "@/components/star-rating";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
-import { Separator } from "@/components/ui/separator";
 import { MapPin, Calendar, Clock, Users, DollarSign, MessageSquare } from "lucide-react";
 import { format } from 'date-fns';
 import { useDoc, useUser, useFirestore, updateDocumentNonBlocking, useMemoFirebase } from "@/firebase";
 import { doc, arrayUnion } from "firebase/firestore";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
+
+function DriverInfo({ driverId }: { driverId: string }) {
+  const firestore = useFirestore();
+  const { isUserLoading } = useUser();
+
+  const driverDocRef = useMemoFirebase(() => {
+    if (!driverId || !firestore || isUserLoading) return null;
+    return doc(firestore, 'users', driverId);
+  }, [firestore, driverId, isUserLoading]);
+  const { data: driver, isLoading: isDriverLoading } = useDoc(driverDocRef);
+
+  if (isDriverLoading) {
+    return (
+        <Card className="text-center">
+            <CardHeader>
+              <CardTitle className="font-headline">Driver</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col items-center gap-4">
+                <Skeleton className="w-24 h-24 rounded-full"/>
+                <div className="space-y-2">
+                    <Skeleton className="h-6 w-32" />
+                    <Skeleton className="h-4 w-24" />
+                </div>
+                <Skeleton className="h-10 w-full" />
+            </CardContent>
+        </Card>
+    );
+  }
+
+  if (!driver) {
+    return null; // Or some fallback UI
+  }
+
+  return (
+    <Card className="text-center">
+      <CardHeader>
+        <CardTitle className="font-headline">Driver</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col items-center gap-4">
+        <Avatar className="w-24 h-24 border-4 border-primary">
+          <AvatarImage src={driver.avatarUrl} alt={`${driver.firstName} ${driver.lastName}`} />
+          <AvatarFallback>{driver.firstName?.charAt(0)}</AvatarFallback>
+        </Avatar>
+        <div className="text-center">
+          <p className="font-bold text-xl">{`${driver.firstName} ${driver.lastName}`}</p>
+          <StarRating rating={driver.rating || 0} className="justify-center mt-1" />
+        </div>
+        <Button variant="outline" className="w-full">
+          <MessageSquare className="w-4 h-4 mr-2" /> Message {driver.firstName}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
 
 export default function RideDetailPage({ params }: { params: { id: string } }) {
   const { user, isUserLoading } = useUser();
@@ -25,20 +79,8 @@ export default function RideDetailPage({ params }: { params: { id: string } }) {
     if (!params.id || !firestore) return null;
     return doc(firestore, 'rides', params.id);
   }, [firestore, params.id]);
+
   const { data: ride, isLoading: isRideLoading } = useDoc(rideDocRef);
-
-  const driverDocRef = useMemoFirebase(() => {
-    if (!ride || !firestore || isUserLoading) return null;
-    return doc(firestore, 'users', ride.offererId);
-  }, [firestore, ride, isUserLoading]);
-  const { data: driver, isLoading: isDriverLoading } = useDoc(driverDocRef);
-
-  const passengersQuery = useMemoFirebase(() => {
-    if (!ride || !ride.riderIds || ride.riderIds.length === 0 || !firestore || isUserLoading) return [];
-    return ride.riderIds.map((id: string) => doc(firestore, 'users', id));
-  }, [firestore, ride, isUserLoading]);
-  // This is a simplified way to fetch passengers. For a real app, you'd use a more robust method.
-  // We're not using a hook here to keep it simple for now.
 
   const handleBookSeat = () => {
     if (!user) {
@@ -68,7 +110,7 @@ export default function RideDetailPage({ params }: { params: { id: string } }) {
     });
   };
 
-  if (isRideLoading || isUserLoading || isDriverLoading) {
+  if (isRideLoading) {
     return (
         <div className="container mx-auto max-w-5xl px-4 md:px-6 py-8">
             <div className="grid md:grid-cols-3 gap-8">
@@ -89,8 +131,6 @@ export default function RideDetailPage({ params }: { params: { id: string } }) {
   if (!ride) {
     notFound();
   }
-
-  const totalSeats = ride.totalSeats ?? ride.availableSeats + (ride.riderIds?.length || 0);
 
   return (
     <div className="container mx-auto max-w-5xl px-4 md:px-6 py-8">
@@ -133,7 +173,7 @@ export default function RideDetailPage({ params }: { params: { id: string } }) {
             <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-6">
                 <div className="flex flex-col items-center text-center">
                     <Users className="w-8 h-8 text-primary mb-2" />
-                    <p className="font-semibold">{ride.availableSeats} of {totalSeats} Seats Left</p>
+                    <p className="font-semibold">{ride.availableSeats} of {ride.totalSeats} Seats Left</p>
                 </div>
                  <div className="flex flex-col items-center text-center">
                     <DollarSign className="w-8 h-8 text-accent mb-2" />
@@ -155,28 +195,7 @@ export default function RideDetailPage({ params }: { params: { id: string } }) {
 
         </div>
         <div className="space-y-6">
-          <Card className="text-center">
-            <CardHeader>
-              <CardTitle className="font-headline">Driver</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col items-center gap-4">
-              {driver ? (
-                <>
-                <Avatar className="w-24 h-24 border-4 border-primary">
-                  <AvatarImage src={driver.avatarUrl} alt={`${driver.firstName} ${driver.lastName}`} />
-                  <AvatarFallback>{driver.firstName?.charAt(0)}</AvatarFallback>
-                </Avatar>
-                <div className="text-center">
-                  <p className="font-bold text-xl">{`${driver.firstName} ${driver.lastName}`}</p>
-                  <StarRating rating={driver.rating || 0} className="justify-center mt-1" />
-                </div>
-                </>
-              ) : <Skeleton className="w-24 h-24 rounded-full"/> }
-              <Button variant="outline" className="w-full">
-                <MessageSquare className="w-4 h-4 mr-2" /> Message {driver?.firstName}
-              </Button>
-            </CardContent>
-          </Card>
+          <DriverInfo driverId={ride.offererId} />
           <Card>
             <CardHeader>
               <CardTitle className="font-headline">Passengers</CardTitle>
