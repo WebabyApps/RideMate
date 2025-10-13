@@ -1,18 +1,19 @@
 'use client';
 
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, notFound } from "next/navigation";
 import Image from "next/image";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { StarRating } from "@/components/star-rating";
-import { PlaceHolderImages } from "@/lib/placeholder-images";
-import { MapPin, Calendar, Clock, Users, DollarSign, MessageSquare, AlertCircle } from "lucide-react";
+import { Calendar, Clock, Users, DollarSign, MessageSquare, AlertCircle } from "lucide-react";
 import { format } from 'date-fns';
 import { useDoc, useUser, useFirestore, updateDocumentNonBlocking, useMemoFirebase } from "@/firebase";
 import { doc, arrayUnion } from "firebase/firestore";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
+import { useEffect, useState } from "react";
+import { RideMap } from "@/components/ride-map";
 
 function DriverInfo({ driverId }: { driverId: string }) {
   const firestore = useFirestore();
@@ -25,9 +26,7 @@ function DriverInfo({ driverId }: { driverId: string }) {
 
   const { data: driver, isLoading: isDriverLoading } = useDoc(driverDocRef);
 
-  const isLoading = isUserLoading || isDriverLoading;
-
-  if (isLoading) {
+  if (isUserLoading || isDriverLoading) {
     return (
         <Card className="text-center">
             <CardHeader>
@@ -84,8 +83,7 @@ export default function RideDetailPage() {
   const firestore = useFirestore();
   const params = useParams();
   const rideId = typeof params.id === 'string' ? params.id : '';
-
-  const mapImage = PlaceHolderImages.find(p => p.id === 'map-placeholder');
+  const [isNotFound, setIsNotFound] = useState(false);
 
   const rideDocRef = useMemoFirebase(() => {
     if (!rideId || !firestore) return null;
@@ -93,6 +91,13 @@ export default function RideDetailPage() {
   }, [firestore, rideId]);
 
   const { data: ride, isLoading: isRideLoading } = useDoc(rideDocRef);
+
+  useEffect(() => {
+    if (!isRideLoading && !ride) {
+      setIsNotFound(true);
+    }
+  }, [isRideLoading, ride]);
+
 
   const handleBookSeat = () => {
     if (!user) {
@@ -122,9 +127,7 @@ export default function RideDetailPage() {
     });
   };
 
-  const isLoading = isRideLoading || isUserLoading;
-
-  if (isLoading) {
+  if (isRideLoading || isUserLoading) {
     return (
         <div className="container mx-auto max-w-5xl px-4 md:px-6 py-8">
             <div className="grid md:grid-cols-3 gap-8">
@@ -142,7 +145,7 @@ export default function RideDetailPage() {
     );
   }
 
-  if (!ride) {
+  if (isNotFound) {
     return (
         <div className="container mx-auto max-w-2xl px-4 md:px-6 py-12 text-center">
             <Card className="p-8">
@@ -156,6 +159,26 @@ export default function RideDetailPage() {
         </div>
     )
   }
+  
+  if (!ride) {
+    // This case will be hit briefly before isNotFound is set, show loading to prevent flicker
+    return (
+       <div className="container mx-auto max-w-5xl px-4 md:px-6 py-8">
+            <div className="grid md:grid-cols-3 gap-8">
+                <div className="md:col-span-2 space-y-8">
+                    <Skeleton className="h-96 w-full" />
+                    <Skeleton className="h-48 w-full" />
+                </div>
+                <div className="space-y-6">
+                    <Skeleton className="h-64 w-full" />
+                    <Skeleton className="h-48 w-full" />
+                    <Skeleton className="h-12 w-full" />
+                </div>
+            </div>
+        </div>
+    );
+  }
+
 
   return (
     <div className="container mx-auto max-w-5xl px-4 md:px-6 py-8">
@@ -176,18 +199,9 @@ export default function RideDetailPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-0">
-              {mapImage && (
-                <div className="relative w-full h-64 md:h-96 rounded-lg overflow-hidden border">
-                  <Image
-                    src={mapImage.imageUrl}
-                    alt="Route map"
-                    data-ai-hint={mapImage.imageHint}
-                    fill
-                    className="object-cover"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
+               <div className="relative w-full h-64 md:h-96 rounded-lg overflow-hidden border">
+                  <RideMap origin={ride.origin} destination={ride.destination} />
                 </div>
-              )}
             </CardContent>
           </Card>
 
@@ -206,12 +220,10 @@ export default function RideDetailPage() {
                     <p className="text-sm text-muted-foreground">per seat</p>
                 </div>
                  <div className="flex flex-col items-center text-center">
-                    <MapPin className="w-8 h-8 text-primary mb-2" />
                     <p className="font-semibold">Origin</p>
                     <p className="text-sm text-muted-foreground">{ride.origin}</p>
                 </div>
                 <div className="flex flex-col items-center text-center">
-                    <MapPin className="w-8 h-8 text-accent mb-2" />
                     <p className="font-semibold">Destination</p>
                     <p className="text-sm text-muted-foreground">{ride.destination}</p>
                 </div>
