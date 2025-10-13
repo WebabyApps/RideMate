@@ -21,7 +21,10 @@ export default function RideDetailPage({ params }: { params: { id: string } }) {
   const firestore = useFirestore();
   const mapImage = PlaceHolderImages.find(p => p.id === 'map-placeholder');
 
-  const rideDocRef = useMemoFirebase(() => doc(firestore, 'rides', params.id), [firestore, params.id]);
+  const rideDocRef = useMemoFirebase(() => {
+    if (!params.id) return null;
+    return doc(firestore, 'rides', params.id);
+  }, [firestore, params.id]);
   const { data: ride, isLoading: isRideLoading } = useDoc(rideDocRef);
 
   const driverDocRef = useMemoFirebase(() => {
@@ -51,6 +54,8 @@ export default function RideDetailPage({ params }: { params: { id: string } }) {
         });
         return;
     }
+    
+    if (!rideDocRef) return;
 
     updateDocumentNonBlocking(rideDocRef, {
         riderIds: arrayUnion(user.uid),
