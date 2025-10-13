@@ -62,16 +62,18 @@ export default function ProfilePage() {
   });
 
   const userDocRef = useMemoFirebase(() => {
-    // Only create the reference if auth check is complete and we have a user.
+    // CRITICAL: Wait for auth check to complete before creating the ref.
     if (isUserLoading || !user || !firestore) return null;
     return doc(firestore, 'users', user.uid);
   }, [firestore, user, isUserLoading]);
+
   const { data: userProfile, isLoading: isProfileLoading } = useDoc(userDocRef);
 
   const userRidesQuery = useMemoFirebase(() => {
     if (isUserLoading || !user || !firestore) return null;
     return query(collection(firestore, 'rides'), where('offererId', '==', user.uid));
   }, [firestore, user, isUserLoading]);
+
   const { data: userRides, isLoading: areRidesLoading } = useCollection(userRidesQuery);
 
   useEffect(() => {
@@ -106,7 +108,10 @@ export default function ProfilePage() {
     setProfileDialogOpen(false);
   }
 
-  if (isUserLoading || isProfileLoading || !userProfile) {
+  // Combine loading states for a single skeleton view
+  const isLoading = isUserLoading || isProfileLoading;
+
+  if (isLoading || !userProfile) {
     return (
         <div className="container mx-auto max-w-5xl px-4 md:px-6 py-8">
             <div className="grid md:grid-cols-3 gap-8">
@@ -268,5 +273,3 @@ export default function ProfilePage() {
     </div>
   );
 }
-
-    

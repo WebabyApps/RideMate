@@ -20,14 +20,17 @@ function DriverInfo({ driverId }: { driverId: string }) {
   const { isUserLoading } = useUser();
 
   const driverDocRef = useMemoFirebase(() => {
-    // Only create the reference if auth check is complete and we have a driverId.
+    // CRITICAL: Wait for auth check to complete before creating the ref.
     if (isUserLoading || !firestore || !driverId) return null;
     return doc(firestore, 'users', driverId);
   }, [firestore, driverId, isUserLoading]);
 
   const { data: driver, isLoading: isDriverLoading } = useDoc(driverDocRef);
 
-  if (isUserLoading || isDriverLoading) {
+  // Show skeleton if either auth state is loading or driver data is loading.
+  const isLoading = isUserLoading || isDriverLoading;
+
+  if (isLoading) {
     return (
         <Card className="text-center">
             <CardHeader>
@@ -97,12 +100,7 @@ export default function RideDetailPage() {
   useEffect(() => {
     // Only check for notFound after the initial loading is complete.
     if (!isRideLoading && !ride) {
-      // Use a timeout to ensure we don't call notFound during the same render cycle
-      // as the loading state change, which can cause issues with Next.js App Router.
-      const timer = setTimeout(() => {
         notFound();
-      }, 0);
-      return () => clearTimeout(timer);
     }
   }, [isRideLoading, ride]);
 
@@ -135,7 +133,9 @@ export default function RideDetailPage() {
     });
   };
 
-  if (isRideLoading || !ride) {
+  const isLoading = isRideLoading || isUserLoading;
+
+  if (isLoading || !ride) {
     return (
         <div className="container mx-auto max-w-5xl px-4 md:px-6 py-8">
             <div className="grid md:grid-cols-3 gap-8">
@@ -239,5 +239,3 @@ export default function RideDetailPage() {
     </div>
   );
 }
-
-    

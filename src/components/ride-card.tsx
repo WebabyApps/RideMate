@@ -20,13 +20,17 @@ function RideDriverInfo({ offererId }: { offererId: string }) {
     const { isUserLoading } = useUser();
 
     const driverDocRef = useMemoFirebase(() => {
-        if (!offererId || !firestore || isUserLoading) return null;
+        // CRITICAL: Wait for auth check to complete before creating the ref.
+        if (isUserLoading || !offererId || !firestore) return null;
         return doc(firestore, 'users', offererId);
     }, [firestore, offererId, isUserLoading]);
 
     const { data: driver, isLoading: isDriverLoading } = useDoc(driverDocRef);
 
-    if (isDriverLoading || isUserLoading) {
+    // Show skeleton if either auth state is loading or driver data is loading.
+    const isLoading = isUserLoading || isDriverLoading;
+
+    if (isLoading) {
         return (
              <div className="flex items-center gap-4 p-6">
                 <Skeleton className="h-10 w-10 rounded-full" />
@@ -39,7 +43,7 @@ function RideDriverInfo({ offererId }: { offererId: string }) {
     }
 
     if (!driver) {
-        return null;
+        return null; // Don't render anything if driver isn't found after loading
     }
 
     return (
