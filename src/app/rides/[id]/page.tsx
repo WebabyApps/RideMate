@@ -22,19 +22,19 @@ export default function RideDetailPage({ params }: { params: { id: string } }) {
   const mapImage = PlaceHolderImages.find(p => p.id === 'map-placeholder');
 
   const rideDocRef = useMemoFirebase(() => {
-    if (!params.id) return null;
+    if (!params.id || !firestore) return null;
     return doc(firestore, 'rides', params.id);
   }, [firestore, params.id]);
   const { data: ride, isLoading: isRideLoading } = useDoc(rideDocRef);
 
   const driverDocRef = useMemoFirebase(() => {
-    if (!ride) return null;
+    if (!ride || !firestore) return null;
     return doc(firestore, 'users', ride.offererId);
   }, [firestore, ride]);
   const { data: driver, isLoading: isDriverLoading } = useDoc(driverDocRef);
 
   const passengersQuery = useMemoFirebase(() => {
-    if (!ride || !ride.riderIds || ride.riderIds.length === 0) return [];
+    if (!ride || !ride.riderIds || ride.riderIds.length === 0 || !firestore) return [];
     return ride.riderIds.map((id: string) => doc(firestore, 'users', id));
   }, [firestore, ride]);
   // This is a simplified way to fetch passengers. For a real app, you'd use a more robust method.
@@ -55,7 +55,7 @@ export default function RideDetailPage({ params }: { params: { id: string } }) {
         return;
     }
     
-    if (!rideDocRef) return;
+    if (!rideDocRef || !ride) return;
 
     updateDocumentNonBlocking(rideDocRef, {
         riderIds: arrayUnion(user.uid),
@@ -88,11 +88,11 @@ export default function RideDetailPage({ params }: { params: { id: string } }) {
               <CardDescription className="flex items-center gap-4 pt-2">
                  <div className="flex items-center gap-2">
                     <Calendar className="w-4 h-4" />
-                    <span>{format(ride.departureTime.toDate(), 'EEEE, MMMM d, yyyy')}</span>
+                    <span>{ride.departureTime ? format(ride.departureTime.toDate(), 'EEEE, MMMM d, yyyy') : 'Date N/A'}</span>
                 </div>
                 <div className="flex items-center gap-2">
                     <Clock className="w-4 h-4" />
-                    <span>at {format(ride.departureTime.toDate(), 'p')}</span>
+                    <span>at {ride.departureTime ? format(ride.departureTime.toDate(), 'p') : 'Time N/A'}</span>
                 </div>
               </CardDescription>
             </CardHeader>
