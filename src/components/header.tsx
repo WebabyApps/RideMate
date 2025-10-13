@@ -9,6 +9,7 @@ import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import { useAuth, useUser } from '@/firebase';
+import { ModeToggle } from './mode-toggle';
 
 const navLinks = [
   { href: '/rides', label: 'Find a Ride' },
@@ -56,6 +57,7 @@ export function Header() {
         </nav>
 
         <div className="hidden md:flex items-center gap-2">
+          <ModeToggle />
           {isUserLoading ? (
             <div className="h-10 w-24 animate-pulse rounded-md bg-muted" />
           ) : user ? (
@@ -81,7 +83,8 @@ export function Header() {
           )}
         </div>
 
-        <div className="md:hidden">
+        <div className="md:hidden flex items-center gap-2">
+          <ModeToggle />
           <Sheet open={isSheetOpen} onOpenChange={setSheetOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon">

@@ -1,28 +1,65 @@
 'use client';
 
-import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo } from "react";
-import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase";
+import { useEffect, useState } from "react";
+import { useUser, useFirestore, useCollection, useMemoFirebase, setDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase";
 import { collection, query, where, doc } from 'firebase/firestore';
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { format } from "date-fns";
+import Link from "next/link";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { StarRating } from "@/components/star-rating";
-import { Calendar, Mail, Edit } from "lucide-react";
-import { format } from "date-fns";
-import Link from "next/link";
-import { RideCard } from "@/components/ride-card";
+import { Calendar, Mail, Edit, Trash2 } from "lucide-react";
 import { useDoc } from "@/firebase/firestore/use-doc";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { useToast } from "@/hooks/use-toast";
 
+const profileSchema = z.object({
+  avatarUrl: z.string().url("Please enter a valid URL.").min(1, "URL is required."),
+});
 
 export default function ProfilePage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
   const firestore = useFirestore();
+  const { toast } = useToast();
+  const [isProfileDialogOpen, setProfileDialogOpen] = useState(false);
+
+  const form = useForm<z.infer<typeof profileSchema>>({
+    resolver: zodResolver(profileSchema),
+    defaultValues: {
+      avatarUrl: "",
+    },
+  });
 
   const userDocRef = useMemoFirebase(() => {
     if (!user) return null;
@@ -36,12 +73,36 @@ export default function ProfilePage() {
   }, [firestore, user]);
   const { data: userRides, isLoading: areRidesLoading } = useCollection(userRidesQuery);
 
-
   useEffect(() => {
     if (!isUserLoading && !user) {
       router.push('/login');
     }
   }, [user, isUserLoading, router]);
+
+  useEffect(() => {
+    if (userProfile) {
+      form.setValue('avatarUrl', userProfile.avatarUrl || '');
+    }
+  }, [userProfile, form]);
+
+  const handleCancelRide = (rideId: string) => {
+    const rideDocRef = doc(firestore, 'rides', rideId);
+    deleteDocumentNonBlocking(rideDocRef);
+    toast({
+      title: "Ride Cancelled",
+      description: "You have successfully cancelled the ride.",
+    });
+  };
+
+  function onProfileSubmit(data: z.infer<typeof profileSchema>) {
+    if (!userDocRef) return;
+    setDocumentNonBlocking(userDocRef, { avatarUrl: data.avatarUrl }, { merge: true });
+    toast({
+      title: "Profile Updated",
+      description: "Your profile picture has been updated.",
+    });
+    setProfileDialogOpen(false);
+  }
 
   if (isUserLoading || isProfileLoading || !userProfile) {
     return (
@@ -107,9 +168,44 @@ export default function ProfilePage() {
                       <span>{userProfile.email}</span>
                   </div>
               </div>
-              <Button variant="outline" className="w-full">
-                <Edit className="w-4 h-4 mr-2" /> Edit Profile
-              </Button>
+                <Dialog open={isProfileDialogOpen} onOpenChange={setProfileDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" className="w-full">
+                      <Edit className="w-4 h-4 mr-2" /> Edit Profile
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Edit Profile</DialogTitle>
+                      <DialogDescription>
+                        Update your profile picture.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <Form {...form}>
+                      <form onSubmit={form.handleSubmit(onProfileSubmit)} className="space-y-4">
+                        <FormField
+                          control={form.control}
+                          name="avatarUrl"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Avatar URL</FormLabel>
+                              <FormControl>
+                                <Input placeholder="https://example.com/image.png" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                         <DialogFooter>
+                          <DialogClose asChild>
+                            <Button type="button" variant="secondary">Cancel</Button>
+                          </DialogClose>
+                          <Button type="submit">Save Changes</Button>
+                        </DialogFooter>
+                      </form>
+                    </Form>
+                  </DialogContent>
+                </Dialog>
             </CardContent>
           </Card>
         </div>
@@ -125,14 +221,34 @@ export default function ProfilePage() {
               ) : userRides && userRides.length > 0 ? (
                 <div className="space-y-4">
                   {userRides.map(ride => (
-                    // This will cause an error for now as RideCard expects a different data structure
-                    // We will fix this in a later step by fetching driver data for each ride.
-                    // For now, we'll pass a simplified object.
-                    <div key={ride.id} className="border p-4 rounded-lg">
-                      <p className="font-bold">{ride.origin} to {ride.destination}</p>
-                      <p>{format(ride.departureTime.toDate(), 'PPpp')}</p>
-                      <p>${ride.cost}</p>
-                    </div>
+                    <Card key={ride.id} className="p-4 flex justify-between items-center">
+                        <div>
+                            <p className="font-bold">{ride.origin} to {ride.destination}</p>
+                            <p className="text-sm text-muted-foreground">{format(ride.departureTime.toDate(), 'PPpp')}</p>
+                            <p className="text-sm">${ride.cost} per seat - {ride.availableSeats} seats left</p>
+                        </div>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="destructive" size="icon">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This action cannot be undone. This will permanently cancel your ride and notify any booked passengers.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Back</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleCancelRide(ride.id)}>
+                                Yes, Cancel Ride
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                    </Card>
                   ))}
                 </div>
               ) : (
