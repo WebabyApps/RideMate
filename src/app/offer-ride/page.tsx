@@ -80,6 +80,7 @@ export default function OfferRidePage() {
       destination: data.destination,
       departureTime: departureDateTime,
       availableSeats: data.seats,
+      totalSeats: data.seats,
       cost: data.price,
       createdAt: serverTimestamp(),
       riderIds: [],

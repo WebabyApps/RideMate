@@ -63,13 +63,15 @@ export default function RideDetailPage({ params }: { params: { id: string } }) {
     });
   };
 
-  if (isRideLoading || isDriverLoading || isUserLoading) {
+  if (isRideLoading || isUserLoading) {
     return <div className="container mx-auto max-w-5xl px-4 md:px-6 py-8"><Skeleton className="h-96 w-full"/></div>;
   }
 
   if (!ride) {
     notFound();
   }
+
+  const totalSeats = ride.totalSeats ?? ride.availableSeats + (ride.riderIds?.length || 0);
 
   return (
     <div className="container mx-auto max-w-5xl px-4 md:px-6 py-8">
@@ -112,7 +114,7 @@ export default function RideDetailPage({ params }: { params: { id: string } }) {
             <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-6">
                 <div className="flex flex-col items-center text-center">
                     <Users className="w-8 h-8 text-primary mb-2" />
-                    <p className="font-semibold">{ride.availableSeats} of {ride.totalSeats || ride.availableSeats + (ride.riderIds?.length || 0)} Seats Left</p>
+                    <p className="font-semibold">{ride.availableSeats} of {totalSeats} Seats Left</p>
                 </div>
                  <div className="flex flex-col items-center text-center">
                     <DollarSign className="w-8 h-8 text-accent mb-2" />
@@ -139,7 +141,9 @@ export default function RideDetailPage({ params }: { params: { id: string } }) {
               <CardTitle className="font-headline">Driver</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col items-center gap-4">
-              {driver ? (
+              {isDriverLoading ? (
+                 <Skeleton className="w-24 h-24 rounded-full"/>
+              ) : driver ? (
                 <>
                 <Avatar className="w-24 h-24 border-4 border-primary">
                   <AvatarImage src={driver.avatarUrl} alt={`${driver.firstName} ${driver.lastName}`} />
@@ -150,7 +154,7 @@ export default function RideDetailPage({ params }: { params: { id: string } }) {
                   <StarRating rating={driver.rating || 0} className="justify-center mt-1" />
                 </div>
                 </>
-              ) : <Skeleton className="w-24 h-24 rounded-full"/> }
+              ) : null }
               <Button variant="outline" className="w-full">
                 <MessageSquare className="w-4 h-4 mr-2" /> Message {driver?.firstName}
               </Button>
@@ -169,7 +173,7 @@ export default function RideDetailPage({ params }: { params: { id: string } }) {
             </CardContent>
           </Card>
            <div className="sticky top-24">
-            <Button size="lg" className="w-full text-lg font-bold bg-accent hover:bg-accent/90 text-accent-foreground" onClick={handleBookSeat} disabled={!user || ride.availableSeats === 0}>
+            <Button size="lg" className="w-full text-lg font-bold bg-accent hover:bg-accent/90 text-accent-foreground" onClick={handleBookSeat} disabled={isUserLoading || !user || ride.availableSeats === 0 || ride.offererId === user?.uid || ride.riderIds?.includes(user?.uid)}>
               {ride.availableSeats > 0 ? 'Book a Seat' : 'Ride Full'}
             </Button>
            </div>
