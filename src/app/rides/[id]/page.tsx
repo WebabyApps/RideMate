@@ -1,6 +1,6 @@
 'use client';
 
-import { notFound, useRouter } from "next/navigation";
+import { notFound, useRouter, useParams } from "next/navigation";
 import Image from "next/image";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -16,7 +16,7 @@ import { toast } from "@/hooks/use-toast";
 
 function DriverInfo({ driverId }: { driverId: string }) {
   const firestore = useFirestore();
-  const { isUserLoading } = useUser();
+  const { user, isUserLoading } = useUser();
 
   const driverDocRef = useMemoFirebase(() => {
     if (!driverId || !firestore || isUserLoading) return null;
@@ -69,16 +69,19 @@ function DriverInfo({ driverId }: { driverId: string }) {
 }
 
 
-export default function RideDetailPage({ params }: { params: { id: string } }) {
+export default function RideDetailPage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
   const firestore = useFirestore();
+  const params = useParams();
+  const rideId = typeof params.id === 'string' ? params.id : '';
+
   const mapImage = PlaceHolderImages.find(p => p.id === 'map-placeholder');
 
   const rideDocRef = useMemoFirebase(() => {
-    if (!params.id || !firestore) return null;
-    return doc(firestore, 'rides', params.id);
-  }, [firestore, params.id]);
+    if (!rideId || !firestore) return null;
+    return doc(firestore, 'rides', rideId);
+  }, [firestore, rideId]);
 
   const { data: ride, isLoading: isRideLoading } = useDoc(rideDocRef);
 
