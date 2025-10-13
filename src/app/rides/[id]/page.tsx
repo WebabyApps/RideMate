@@ -28,15 +28,15 @@ export default function RideDetailPage({ params }: { params: { id: string } }) {
   const { data: ride, isLoading: isRideLoading } = useDoc(rideDocRef);
 
   const driverDocRef = useMemoFirebase(() => {
-    if (!ride || !firestore) return null;
+    if (!ride || !firestore || isUserLoading) return null;
     return doc(firestore, 'users', ride.offererId);
-  }, [firestore, ride]);
+  }, [firestore, ride, isUserLoading]);
   const { data: driver, isLoading: isDriverLoading } = useDoc(driverDocRef);
 
   const passengersQuery = useMemoFirebase(() => {
-    if (!ride || !ride.riderIds || ride.riderIds.length === 0 || !firestore) return [];
+    if (!ride || !ride.riderIds || ride.riderIds.length === 0 || !firestore || isUserLoading) return [];
     return ride.riderIds.map((id: string) => doc(firestore, 'users', id));
-  }, [firestore, ride]);
+  }, [firestore, ride, isUserLoading]);
   // This is a simplified way to fetch passengers. For a real app, you'd use a more robust method.
   // We're not using a hook here to keep it simple for now.
 
@@ -68,8 +68,22 @@ export default function RideDetailPage({ params }: { params: { id: string } }) {
     });
   };
 
-  if (isRideLoading || isUserLoading) {
-    return <div className="container mx-auto max-w-5xl px-4 md:px-6 py-8"><Skeleton className="h-96 w-full"/></div>;
+  if (isRideLoading || isUserLoading || isDriverLoading) {
+    return (
+        <div className="container mx-auto max-w-5xl px-4 md:px-6 py-8">
+            <div className="grid md:grid-cols-3 gap-8">
+                <div className="md:col-span-2 space-y-8">
+                    <Skeleton className="h-96 w-full" />
+                    <Skeleton className="h-48 w-full" />
+                </div>
+                <div className="space-y-6">
+                    <Skeleton className="h-64 w-full" />
+                    <Skeleton className="h-48 w-full" />
+                    <Skeleton className="h-12 w-full" />
+                </div>
+            </div>
+        </div>
+    );
   }
 
   if (!ride) {
@@ -146,9 +160,7 @@ export default function RideDetailPage({ params }: { params: { id: string } }) {
               <CardTitle className="font-headline">Driver</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col items-center gap-4">
-              {isDriverLoading ? (
-                 <Skeleton className="w-24 h-24 rounded-full"/>
-              ) : driver ? (
+              {driver ? (
                 <>
                 <Avatar className="w-24 h-24 border-4 border-primary">
                   <AvatarImage src={driver.avatarUrl} alt={`${driver.firstName} ${driver.lastName}`} />
@@ -159,7 +171,7 @@ export default function RideDetailPage({ params }: { params: { id: string } }) {
                   <StarRating rating={driver.rating || 0} className="justify-center mt-1" />
                 </div>
                 </>
-              ) : null }
+              ) : <Skeleton className="w-24 h-24 rounded-full"/> }
               <Button variant="outline" className="w-full">
                 <MessageSquare className="w-4 h-4 mr-2" /> Message {driver?.firstName}
               </Button>

@@ -9,7 +9,7 @@ import { ArrowRight, MapPin, Calendar, Clock, Users, DollarSign } from 'lucide-r
 import type { Ride } from '@/lib/types';
 import { StarRating } from './star-rating';
 import { format } from 'date-fns';
-import { useDoc, useFirestore, useMemoFirebase } from '@/firebase';
+import { useDoc, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { Skeleton } from './ui/skeleton';
 
@@ -19,15 +19,16 @@ type RideCardProps = {
 
 export function RideCard({ ride }: RideCardProps) {
   const firestore = useFirestore();
+  const { isUserLoading } = useUser();
 
   const driverDocRef = useMemoFirebase(() => {
-    if (!ride.offererId) return null;
+    if (!ride.offererId || isUserLoading) return null;
     return doc(firestore, 'users', ride.offererId);
-  }, [firestore, ride.offererId]);
+  }, [firestore, ride.offererId, isUserLoading]);
 
   const { data: driver, isLoading: isDriverLoading } = useDoc(driverDocRef);
 
-  if (isDriverLoading) {
+  if (isDriverLoading || isUserLoading) {
     return <Skeleton className="h-96 w-full" />;
   }
   

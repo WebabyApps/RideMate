@@ -105,7 +105,7 @@ export default function ProfilePage() {
     setProfileDialogOpen(false);
   }
 
-  if (isUserLoading || isProfileLoading || !userProfile || !user) {
+  if (isUserLoading || isProfileLoading || !user) {
     return (
         <div className="container mx-auto max-w-5xl px-4 md:px-6 py-8">
             <div className="grid md:grid-cols-3 gap-8">
@@ -149,14 +149,14 @@ export default function ProfilePage() {
           <Card className="text-center sticky top-24">
             <CardHeader>
                 <Avatar className="w-32 h-32 mx-auto border-4 border-primary shadow-lg">
-                  <AvatarImage src={userProfile.avatarUrl} alt={`${userProfile.firstName} ${userProfile.lastName}`} />
-                  <AvatarFallback>{userProfile.firstName?.charAt(0)}</AvatarFallback>
+                  <AvatarImage src={userProfile?.avatarUrl} alt={`${userProfile?.firstName} ${userProfile?.lastName}`} />
+                  <AvatarFallback>{userProfile?.firstName?.charAt(0)}</AvatarFallback>
                 </Avatar>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                  <CardTitle className="font-headline text-3xl">{`${userProfile.firstName} ${userProfile.lastName}`}</CardTitle>
-                  <StarRating rating={userProfile.rating || 0} className="justify-center mt-2" starClassName="w-5 h-5" />
+                  <CardTitle className="font-headline text-3xl">{`${userProfile?.firstName} ${userProfile?.lastName}`}</CardTitle>
+                  <StarRating rating={userProfile?.rating || 0} className="justify-center mt-2" starClassName="w-5 h-5" />
               </div>
               <Separator />
               <div className="text-left space-y-2 text-muted-foreground">
@@ -166,7 +166,7 @@ export default function ProfilePage() {
                   </div>
                   <div className="flex items-center gap-3">
                       <Mail className="w-4 h-4" />
-                      <span>{userProfile.email}</span>
+                      <span>{userProfile?.email}</span>
                   </div>
               </div>
                 <Dialog open={isProfileDialogOpen} onOpenChange={setProfileDialogOpen}>
