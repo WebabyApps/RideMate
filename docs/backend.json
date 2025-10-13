@@ -1,0 +1,200 @@
+{
+  "entities": {
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user within the RideMate application.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the user."
+        },
+        "firstName": {
+          "type": "string",
+          "description": "The first name of the user."
+        },
+        "lastName": {
+          "type": "string",
+          "description": "The last name of the user."
+        },
+        "email": {
+          "type": "string",
+          "description": "The email address of the user.",
+          "format": "email"
+        },
+        "phoneNumber": {
+          "type": "string",
+          "description": "The user's phone number."
+        },
+        "ratingIds": {
+          "type": "array",
+          "description": "References to Ratings given by the user. (Relationship: User 1:N Rating)",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "firstName",
+        "lastName",
+        "email",
+        "phoneNumber"
+      ]
+    },
+    "Ride": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Ride",
+      "type": "object",
+      "description": "Represents a ride offered or requested within the RideMate application.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the ride."
+        },
+        "offererId": {
+          "type": "string",
+          "description": "Reference to User who is offering the ride. (Relationship: User 1:N Ride)"
+        },
+        "destination": {
+          "type": "string",
+          "description": "The destination address of the ride."
+        },
+        "departureTime": {
+          "type": "string",
+          "description": "The date and time of departure.",
+          "format": "date-time"
+        },
+        "availableSeats": {
+          "type": "number",
+          "description": "The number of seats available in the ride."
+        },
+        "cost": {
+          "type": "number",
+          "description": "The cost per seat for the ride."
+        },
+        "riderIds": {
+          "type": "array",
+          "description": "References to Users who are riding in this ride. (Relationship: Ride 1:N User)",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "offererId",
+        "destination",
+        "departureTime",
+        "availableSeats",
+        "cost"
+      ]
+    },
+    "Rating": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Rating",
+      "type": "object",
+      "description": "Represents a rating given by a user for a ride.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the rating."
+        },
+        "raterId": {
+          "type": "string",
+          "description": "Reference to the User who gave the rating. (Relationship: User 1:N Rating)"
+        },
+        "ratedRideId": {
+          "type": "string",
+          "description": "Reference to the Ride that is being rated. (Relationship: Ride 1:N Rating)"
+        },
+        "ratingValue": {
+          "type": "number",
+          "description": "The rating value (e.g., 1-5 stars)."
+        },
+        "comment": {
+          "type": "string",
+          "description": "Optional comment providing more details about the rating."
+        }
+      },
+      "required": [
+        "id",
+        "raterId",
+        "ratedRideId",
+        "ratingValue"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user profiles. The 'userId' parameter is the Firebase Authentication UID.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user, corresponding to the Firebase Authentication UID."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/rides/{rideId}",
+        "definition": {
+          "entityName": "Ride",
+          "schema": {
+            "$ref": "#/backend/entities/Ride"
+          },
+          "description": "Stores rides offered by a specific user. Includes denormalized 'offererId' for authorization independence.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user offering the ride."
+            },
+            {
+              "name": "rideId",
+              "description": "The unique identifier for the ride."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/rides/{rideId}/ratings/{ratingId}",
+        "definition": {
+          "entityName": "Rating",
+          "schema": {
+            "$ref": "#/backend/entities/Rating"
+          },
+          "description": "Stores ratings for a specific ride.  Maintains the relationship between user, ride, and rating.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user offering the ride."
+            },
+            {
+              "name": "rideId",
+              "description": "The unique identifier for the ride being rated."
+            },
+            {
+              "name": "ratingId",
+              "description": "The unique identifier for the rating."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to ensure secure and scalable data management for the RideMate application, focusing on user authentication and ride management. To address the user's need for signed-in users, the structure is designed to work with Firebase Authentication. The core principle is authorization independence, achieved through denormalization.  The `users` collection stores user profiles, with `rides` subcollections to manage rides offered by the users. Ratings are stored as a subcollection under rides for easy access and scalability. This setup supports straightforward security rules based on user roles and ride ownership, eliminating the need for complex `get()` calls and ensuring atomic operations. The separation of user data and rides into dedicated collections enhances security and facilitates efficient data retrieval and management.\n\n**Authorization Independence (CRITICAL):**  The rides subcollection includes the `offererId` which denormalizes the user ID to determine ride ownership, removing the need for parent document `get()` calls.\n\n**QAPs Support:** Segregation of data (users, rides) ensures that list operations are secure, as rules can be applied consistently to each collection based on its specific access requirements.  Path-based ownership for user-created content (rides) simplifies list queries and ensures only the owner can manage their resources."
+  }
+}
