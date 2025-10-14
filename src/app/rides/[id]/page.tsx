@@ -87,9 +87,9 @@ export default function RideDetailPage() {
   const rideId = typeof params.id === 'string' ? params.id : '';
 
   const rideDocRef = useMemoFirebase(() => {
-    if (!firestore || !rideId) return null;
+    if (isUserLoading || !firestore || !rideId) return null;
     return doc(firestore, 'rides', rideId);
-  }, [firestore, rideId]);
+  }, [firestore, rideId, isUserLoading]);
 
   const { data: ride, isLoading: isRideLoading } = useDoc<Ride>(rideDocRef);
 
@@ -121,7 +121,9 @@ export default function RideDetailPage() {
     });
   };
 
-  if (isRideLoading || !ride) {
+  const isLoading = isRideLoading || isUserLoading;
+
+  if (isLoading || !ride) {
     return (
         <div className="container mx-auto max-w-5xl px-4 md:px-6 py-8">
             <div className="grid md:grid-cols-3 gap-8">
@@ -139,7 +141,7 @@ export default function RideDetailPage() {
     );
   }
   
-  if (!isRideLoading && !ride) {
+  if (!isLoading && !ride) {
     return (
         <div className="container mx-auto max-w-2xl px-4 md:px-6 py-12 text-center">
             <Card className="p-8">
