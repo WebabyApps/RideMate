@@ -1,9 +1,6 @@
 'use client';
 
-import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
-
-import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -17,54 +14,11 @@ import { toast } from "@/hooks/use-toast";
 import { RideMap } from "@/components/ride-map";
 import type { Ride } from '@/lib/types';
 import type { UserProfile } from "@/lib/types";
+import Link from 'next/link';
 
 function DriverInfo({ driverId }: { driverId: string }) {
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
-
-  const canViewDriverProfile = !!user && user.uid === driverId;
-
-  if (isUserLoading) {
-    return (
-      <Card className="text-center">
-        <CardHeader>
-          <CardTitle className="font-headline">Driver</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col items-center gap-4">
-          <Skeleton className="w-24 h-24 rounded-full" />
-          <div className="space-y-2">
-            <Skeleton className="h-6 w-32" />
-            <Skeleton className="h-4 w-24" />
-          </div>
-          <Skeleton className="h-10 w-full" />
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (!canViewDriverProfile) {
-    return (
-      <Card className="text-center">
-        <CardHeader>
-          <CardTitle className="font-headline">Driver</CardTitle>
-          <CardDescription>Driver details are shared after you join the ride.</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col items-center gap-4">
-          <Avatar className="w-24 h-24 border-4 border-muted">
-            <AvatarFallback>
-              <UserIcon className="h-6 w-6" />
-            </AvatarFallback>
-          </Avatar>
-          <p className="text-sm text-muted-foreground">
-            Log in and request a seat to connect with the driver.
-          </p>
-          <Button className="w-full" asChild>
-            <Link href="/login">Log in</Link>
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
 
   const driverDocRef = useMemoFirebase(() => {
     if (!firestore || !driverId) return null;
@@ -73,7 +27,12 @@ function DriverInfo({ driverId }: { driverId: string }) {
 
   const { data: driver, isLoading: isDriverLoading } = useDoc<UserProfile>(driverDocRef);
 
-  if (isDriverLoading) {
+  const isOwnProfile = user?.uid === driverId;
+  const hasJoinedRide = false; // This needs to be determined from the parent ride state
+  const canViewDriverProfile = isOwnProfile || hasJoinedRide;
+
+
+  if (isDriverLoading || isUserLoading) {
     return (
       <Card className="text-center">
         <CardHeader>
@@ -100,6 +59,33 @@ function DriverInfo({ driverId }: { driverId: string }) {
       </Card>
     );
   }
+  
+  if (!canViewDriverProfile) {
+    return (
+      <Card className="text-center">
+        <CardHeader>
+          <CardTitle className="font-headline">Driver</CardTitle>
+          <CardDescription>Driver details are shared after you join the ride.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col items-center gap-4">
+          <Avatar className="w-24 h-24 border-4 border-muted">
+             <AvatarImage src={driver.avatarUrl} alt={`${driver.firstName} ${driver.lastName}`} />
+            <AvatarFallback>
+              <UserIcon className="h-10 w-10 text-muted-foreground" />
+            </AvatarFallback>
+          </Avatar>
+           <div className="text-center">
+             <p className="font-bold text-xl">{`${driver.firstName} ${driver.lastName}`}</p>
+             <StarRating rating={driver.rating || 0} className="justify-center mt-1" />
+           </div>
+          <p className="text-sm text-muted-foreground pt-4 border-t w-full">
+            Request a seat to connect with the driver.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
 
   return (
     <Card className="text-center">
@@ -125,7 +111,7 @@ function DriverInfo({ driverId }: { driverId: string }) {
 
 
 export default function RideDetailPage() {
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
   const router = useRouter();
   const firestore = useFirestore();
   const params = useParams();
@@ -166,7 +152,7 @@ export default function RideDetailPage() {
     });
   };
 
-  const isLoading = isRideLoading;
+  const isLoading = isRideLoading || isUserLoading;
 
   if (isLoading) {
     return (
