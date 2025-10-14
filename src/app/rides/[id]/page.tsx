@@ -16,13 +16,14 @@ import { useState, useEffect } from "react";
 
 function DriverInfo({ driverId }: { driverId: string }) {
   const firestore = useFirestore();
+  const { isUserLoading } = useUser();
   const [driverDocRef, setDriverDocRef] = useState<any>(null);
 
   useEffect(() => {
-    if (firestore && driverId) {
+    if (firestore && driverId && !isUserLoading) {
       setDriverDocRef(doc(firestore, 'users', driverId));
     }
-  }, [firestore, driverId]);
+  }, [firestore, driverId, isUserLoading]);
 
   const { data: driver, isLoading: isDriverLoading } = useDoc(driverDocRef);
 
@@ -84,12 +85,15 @@ export default function RideDetailPage() {
   const params = useParams();
   const rideId = typeof params.id === 'string' ? params.id : '';
 
-  const rideDocRef = useMemoFirebase(() => {
-    if (!rideId || !firestore) return null;
-    return doc(firestore, 'rides', rideId);
+  const [rideDocRef, setRideDocRef] = useState<any>(null);
+
+  useEffect(() => {
+    if (firestore && rideId) {
+      setRideDocRef(doc(firestore, 'rides', rideId));
+    }
   }, [firestore, rideId]);
 
-  const { data: ride, isLoading: isRideLoading } = useDoc(rideDocRef);
+  const { data: ride, isLoading: isRideLoading } = useDoc<any>(rideDocRef);
 
   const handleBookSeat = () => {
     if (!user) {
@@ -119,7 +123,7 @@ export default function RideDetailPage() {
     });
   };
 
-  if (isRideLoading) {
+  if (isRideLoading || !ride) {
     return (
         <div className="container mx-auto max-w-5xl px-4 md:px-6 py-8">
             <div className="grid md:grid-cols-3 gap-8">
@@ -137,7 +141,7 @@ export default function RideDetailPage() {
     );
   }
   
-  if (!ride) {
+  if (!isRideLoading && !ride) {
     return (
         <div className="container mx-auto max-w-2xl px-4 md:px-6 py-12 text-center">
             <Card className="p-8">
