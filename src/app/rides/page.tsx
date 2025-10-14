@@ -1,5 +1,5 @@
 'use client';
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
+import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
 import { RideCard } from "@/components/ride-card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -17,11 +17,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export default function RidesPage() {
   const firestore = useFirestore();
+  const { isUserLoading } = useUser();
 
   const ridesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || isUserLoading) return null;
     return query(collection(firestore, 'rides'), orderBy('departureTime', 'asc'));
-  }, [firestore]);
+  }, [firestore, isUserLoading]);
 
   const { data: rides, isLoading } = useCollection(ridesQuery);
 
