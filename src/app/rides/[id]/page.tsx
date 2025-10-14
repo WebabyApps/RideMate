@@ -87,9 +87,9 @@ export default function RideDetailPage() {
   const rideId = typeof params.id === 'string' ? params.id : '';
 
   const rideDocRef = useMemoFirebase(() => {
-    if (isUserLoading || !firestore || !rideId) return null;
+    if (!firestore || !rideId) return null;
     return doc(firestore, 'rides', rideId);
-  }, [firestore, rideId, isUserLoading]);
+  }, [firestore, rideId]);
 
   const { data: ride, isLoading: isRideLoading } = useDoc<Ride>(rideDocRef);
 
@@ -206,7 +206,22 @@ export default function RideDetailPage() {
 
         </div>
         <div className="space-y-6">
-          {ride.offererId && <DriverInfo driverId={ride.offererId} />}
+          {ride.offererId && !isUserLoading && <DriverInfo driverId={ride.offererId} />}
+          {isUserLoading && (
+            <Card className="text-center">
+                <CardHeader>
+                  <CardTitle className="font-headline">Driver</CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-col items-center gap-4">
+                    <Skeleton className="w-24 h-24 rounded-full"/>
+                    <div className="space-y-2">
+                        <Skeleton className="h-6 w-32" />
+                        <Skeleton className="h-4 w-24" />
+                    </div>
+                    <Skeleton className="h-10 w-full" />
+                </CardContent>
+            </Card>
+          )}
           <Card>
             <CardHeader>
               <CardTitle className="font-headline">Passengers</CardTitle>
