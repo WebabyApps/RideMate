@@ -2,51 +2,86 @@
  * @fileoverview Firestore Security Rules for RideMate application.
  *
  * Core Philosophy:
- * This ruleset enforces a strict user-ownership model for user profiles. Rides are publicly readable but writable only by the offerer. Ratings are restricted to authenticated users and are scoped to specific rides.
+ * This ruleset enforces a strict user-ownership model for user profiles. Rides are publicly readable but owner-writable. Ratings are nested under rides and are writable by any authenticated user.
  *
  * Data Structure:
- * - /users/{userId}: Stores user profile information. Only the user can read/write their own profile.
- * - /rides/{rideId}: Stores ride information. Publicly readable. Writable only by the ride offerer.
- * - /rides/{rideId}/ratings/{ratingId}: Stores ratings for a specific ride. Only authenticated users can create ratings, and only if they are a rider in the ride.
+ * - /users/{userId}: Stores user profile information. Access is restricted to the user themselves.
+ * - /rides/{rideId}: Stores ride information. Rides are publicly readable, but only the ride offerer can modify or delete them.
+ * - /rides/{rideId}/ratings/{ratingId}: Stores ratings for specific rides. Any logged-in user can create a rating for a ride.
  *
  * Key Security Decisions:
- * - Users can only read and write their own user documents. User listing is disallowed.
- * - Rides are publicly readable, allowing anyone to see available rides. Only the ride offerer can modify or delete a ride.
- * - Ratings can only be created by authenticated users who are riders in the ride.
+ * - Users can only read/write their own profile data.
+ * - Rides are publicly listable and readable.
+ * - Only the ride offerer can modify ride details.
+ * - Any logged-in user can create ratings for rides.
+ * - Listing user documents is disallowed.
  *
  * Denormalization for Authorization:
- * - The `Ride` document contains the `offererId` to determine who can modify it. This avoids needing a separate lookup.
- * - The `Rating` document is nested under the `/rides/{rideId}` document to easily scope ratings to rides.
+ * - Rides should include an `offererId` field to simplify ownership checks for updates and deletes.
+ *
+ * Structural Segregation:
+ * - User profiles and public ride listings are stored in separate top-level collections.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Controls access to user profile documents.
+     * @description Secures the /users collection, allowing users to read and write their own profile data.
      * @path /users/{userId}
-     * @allow (get, create, update, delete) if the user's UID matches the userId in the path.
-     * @deny (get) if the user's UID does not match the userId in the path.
-     * @principle Enforces document ownership: Only the user can read/write their own profile.
+     * @allow (get, create, update, delete) if the request is made by the user with matching id (isOwner).
+     * @deny (get) if the request is made by a different user (not isOwner).
+     * @deny (list) all listing is denied on /users
+     * @principle Enforces document ownership for writes.
      */
     match /users/{userId} {
+      // Only allow authenticated users
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      // Helper function to check if the requesting user is the owner of the document
+      function isOwner(userId) {
+        return isSignedIn() && request.auth.uid == userId;
+      }
+
+      // Helper function to check if the requesting user is the existing owner of the document
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+      
       allow get: if isOwner(userId);
-      allow list: if false; // User listing is not allowed.
-      allow create: if isOwner(userId);
-      allow update: if isOwner(userId);
+      allow list: if false;
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
       allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Controls access to ride documents. Rides are publicly readable, but only the offerer can modify or delete them.
+     * @description Secures the /rides collection, allowing public read access, and owner-only write access.
      * @path /rides/{rideId}
-     * @allow (get, list) any authenticated or unauthenticated user can read the rides
-     * @allow (create) any authenticated user can create a ride
-     * @allow (update, delete) only the ride offerer can update or delete the ride.
-     * @deny (update, delete) if the ride does not exist.
-     * @principle Public read, owner-only writes.
+     * @allow (get, list) public read access.
+     * @allow (create) if the ride's offererId matches the user's ID.
+     * @allow (update, delete) if the ride's offererId matches the user's ID.
+     * @deny (create, update, delete) if the ride's offererId does not match the user's ID.
+     * @principle Enforces document ownership for writes, while allowing public reads.
      */
     match /rides/{rideId} {
+        // Only allow authenticated users
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      // Helper function to check if the requesting user is the owner of the document
+      function isOwner(offererId) {
+        return isSignedIn() && request.auth.uid == offererId;
+      }
+
+        // Helper function to check if the requesting user is the owner of the document
+      function isExistingOwner(offererId) {
+        return isOwner(offererId) && resource != null;
+      }
+
       allow get, list: if true;
       allow create: if isSignedIn() && request.resource.data.offererId == request.auth.uid;
       allow update: if isExistingOwner(resource.data.offererId);
@@ -54,34 +89,22 @@ service cloud.firestore {
     }
 
     /**
-     * @description Controls access to rating documents under a specific ride.
+     * @description Secures the /rides/{rideId}/ratings collection, allowing any authenticated user to create a rating, but restricting reading and writing to authenticated users.
      * @path /rides/{rideId}/ratings/{ratingId}
-     * @allow (create) only authenticated users who are riders in the ride can create a rating.
-     * @allow (get, list) any authenticated user can read the ratings for the ride
-     * @deny (update, delete) No updates or deletes allowed on ratings.
-     * @principle Restricts rating creation to riders only.
+     * @allow (get, list) if the user is signed in.
+     * @allow (create) if the user is signed in.
+     * @allow (update, delete) if false (no updates or deletes allowed).
+     * @principle Allows any logged-in user to create ratings for rides.
      */
     match /rides/{rideId}/ratings/{ratingId} {
+        // Only allow authenticated users
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
       allow get, list: if isSignedIn();
-      allow create: if isSignedIn() && isRider(rideId);
-      allow update: if false;
-      allow delete: if false;
-    }
-
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-
-    function isExistingOwner(userId) {
-      return isSignedIn() && isOwner(userId) && resource != null;
-    }
-
-    function isRider(rideId) {
-        return get(/databases/$(database)/documents/rides/$(rideId)).data.riderIds.hasAny([request.auth.uid]);
+      allow create: if isSignedIn();
+      allow update, delete: if false;
     }
   }
 }
