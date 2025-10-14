@@ -86,9 +86,9 @@ export default function RideDetailPage() {
   const rideId = typeof params.id === 'string' ? params.id : '';
 
   const rideDocRef = useMemoFirebase(() => {
-    if (!firestore || !rideId) return null;
+    if (!firestore || !rideId || isUserLoading) return null;
     return doc(firestore, 'rides', rideId);
-  }, [firestore, rideId]);
+  }, [firestore, rideId, isUserLoading]);
 
   const { data: ride, isLoading: isRideLoading } = useDoc<Ride>(rideDocRef);
 
