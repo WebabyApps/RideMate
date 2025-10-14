@@ -8,7 +8,7 @@ import { StarRating } from "@/components/star-rating";
 import { Calendar, Clock, Users, DollarSign, MessageSquare, AlertCircle } from "lucide-react";
 import { format } from 'date-fns';
 import { useDoc, useUser, useFirestore, updateDocumentNonBlocking, useMemoFirebase } from "@/firebase";
-import { doc, arrayUnion } from "firebase/firestore";
+import { doc, arrayUnion, DocumentReference, DocumentData } from "firebase/firestore";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
 import { RideMap } from "@/components/ride-map";
@@ -19,15 +19,18 @@ import type { UserProfile } from "@/lib/types";
 function DriverInfo({ driverId }: { driverId: string }) {
   const firestore = useFirestore();
   const { isUserLoading } = useUser();
+  const [driverDocRef, setDriverDocRef] = useState<DocumentReference<DocumentData> | null>(null);
 
-  const driverDocRef = useMemoFirebase(() => {
-    if (isUserLoading || !firestore || !driverId) return null;
-    return doc(firestore, 'users', driverId);
+  useEffect(() => {
+    if (!isUserLoading && firestore && driverId) {
+      setDriverDocRef(doc(firestore, 'users', driverId));
+    }
   }, [firestore, driverId, isUserLoading]);
+
 
   const { data: driver, isLoading: isDriverLoading } = useDoc<UserProfile>(driverDocRef);
 
-  if (isDriverLoading || isUserLoading) {
+  if (isUserLoading || isDriverLoading) {
     return (
         <Card className="text-center">
             <CardHeader>
@@ -86,7 +89,7 @@ export default function RideDetailPage() {
   const rideId = typeof params.id === 'string' ? params.id : '';
 
   const rideDocRef = useMemoFirebase(() => {
-    if (!firestore || !rideId || isUserLoading) return null;
+    if (isUserLoading || !firestore || !rideId) return null;
     return doc(firestore, 'rides', rideId);
   }, [firestore, rideId, isUserLoading]);
 
