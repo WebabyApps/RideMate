@@ -20,7 +20,7 @@ function DriverInfo({ driverId }: { driverId: string }) {
   const { isUserLoading } = useUser();
 
   const driverDocRef = useMemoFirebase(() => {
-    if (isUserLoading || !firestore || !driverId) return null;
+    if (!firestore || !driverId || isUserLoading) return null;
     return doc(firestore, 'users', driverId);
   }, [firestore, driverId, isUserLoading]);
 
@@ -83,7 +83,6 @@ export default function RideDetailPage() {
   const firestore = useFirestore();
   const params = useParams();
   const rideId = typeof params.id === 'string' ? params.id : '';
-  const [isNotFound, setIsNotFound] = useState(false);
 
   const rideDocRef = useMemoFirebase(() => {
     if (!rideId || !firestore) return null;
@@ -91,13 +90,6 @@ export default function RideDetailPage() {
   }, [firestore, rideId]);
 
   const { data: ride, isLoading: isRideLoading } = useDoc(rideDocRef);
-
-  useEffect(() => {
-    if (!isRideLoading && !ride) {
-      setIsNotFound(true);
-    }
-  }, [isRideLoading, ride]);
-
 
   const handleBookSeat = () => {
     if (!user) {
@@ -127,7 +119,7 @@ export default function RideDetailPage() {
     });
   };
 
-  if (isRideLoading || isUserLoading) {
+  if (isRideLoading) {
     return (
         <div className="container mx-auto max-w-5xl px-4 md:px-6 py-8">
             <div className="grid md:grid-cols-3 gap-8">
@@ -145,7 +137,7 @@ export default function RideDetailPage() {
     );
   }
 
-  if (isNotFound) {
+  if (!ride) {
     return (
         <div className="container mx-auto max-w-2xl px-4 md:px-6 py-12 text-center">
             <Card className="p-8">
@@ -160,26 +152,6 @@ export default function RideDetailPage() {
     )
   }
   
-  if (!ride) {
-    // This case will be hit briefly before isNotFound is set, show loading to prevent flicker
-    return (
-       <div className="container mx-auto max-w-5xl px-4 md:px-6 py-8">
-            <div className="grid md:grid-cols-3 gap-8">
-                <div className="md:col-span-2 space-y-8">
-                    <Skeleton className="h-96 w-full" />
-                    <Skeleton className="h-48 w-full" />
-                </div>
-                <div className="space-y-6">
-                    <Skeleton className="h-64 w-full" />
-                    <Skeleton className="h-48 w-full" />
-                    <Skeleton className="h-12 w-full" />
-                </div>
-            </div>
-        </div>
-    );
-  }
-
-
   return (
     <div className="container mx-auto max-w-5xl px-4 md:px-6 py-8">
       <div className="grid md:grid-cols-3 gap-8">
