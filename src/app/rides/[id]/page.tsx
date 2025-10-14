@@ -1,11 +1,12 @@
 'use client';
 
+import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { StarRating } from "@/components/star-rating";
-import { Calendar, Clock, Users, DollarSign, MessageSquare, AlertCircle } from "lucide-react";
+import { Calendar, Clock, Users, DollarSign, MessageSquare, AlertCircle, User as UserIcon } from "lucide-react";
 import { format } from 'date-fns';
 import { useDoc, useUser, useFirestore, updateDocumentNonBlocking, useMemoFirebase } from "@/firebase";
 import { doc, arrayUnion, DocumentReference, DocumentData } from "firebase/firestore";
@@ -18,31 +19,74 @@ import type { UserProfile } from "@/lib/types";
 
 function DriverInfo({ driverId }: { driverId: string }) {
   const firestore = useFirestore();
-  const { isUserLoading } = useUser();
+  const { user, isUserLoading } = useUser();
+
+  const canViewDriverProfile = !!user && user.uid === driverId;
+
+  if (isUserLoading) {
+    return (
+      <Card className="text-center">
+        <CardHeader>
+          <CardTitle className="font-headline">Driver</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col items-center gap-4">
+          <Skeleton className="w-24 h-24 rounded-full" />
+          <div className="space-y-2">
+            <Skeleton className="h-6 w-32" />
+            <Skeleton className="h-4 w-24" />
+          </div>
+          <Skeleton className="h-10 w-full" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!canViewDriverProfile) {
+    return (
+      <Card className="text-center">
+        <CardHeader>
+          <CardTitle className="font-headline">Driver</CardTitle>
+          <CardDescription>Driver details are shared after you join the ride.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col items-center gap-4">
+          <Avatar className="w-24 h-24 border-4 border-muted">
+            <AvatarFallback>
+              <UserIcon className="h-6 w-6" />
+            </AvatarFallback>
+          </Avatar>
+          <p className="text-sm text-muted-foreground">
+            Log in and request a seat to connect with the driver.
+          </p>
+          <Button className="w-full" asChild>
+            <Link href="/login">Log in</Link>
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const driverDocRef = useMemoFirebase(() => {
-    if (isUserLoading || !firestore || !driverId) return null;
+    if (!firestore || !driverId) return null;
     return doc(firestore, 'users', driverId);
-  }, [firestore, driverId, isUserLoading]);
-
+  }, [firestore, driverId]);
 
   const { data: driver, isLoading: isDriverLoading } = useDoc<UserProfile>(driverDocRef);
 
-  if (isUserLoading || isDriverLoading) {
+  if (isDriverLoading) {
     return (
-        <Card className="text-center">
-            <CardHeader>
-              <CardTitle className="font-headline">Driver</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col items-center gap-4">
-                <Skeleton className="w-24 h-24 rounded-full"/>
-                <div className="space-y-2">
-                    <Skeleton className="h-6 w-32" />
-                    <Skeleton className="h-4 w-24" />
-                </div>
-                <Skeleton className="h-10 w-full" />
-            </CardContent>
-        </Card>
+      <Card className="text-center">
+        <CardHeader>
+          <CardTitle className="font-headline">Driver</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col items-center gap-4">
+          <Skeleton className="w-24 h-24 rounded-full" />
+          <div className="space-y-2">
+            <Skeleton className="h-6 w-32" />
+            <Skeleton className="h-4 w-24" />
+          </div>
+          <Skeleton className="h-10 w-full" />
+        </CardContent>
+      </Card>
     );
   }
 
