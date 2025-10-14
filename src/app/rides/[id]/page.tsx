@@ -19,12 +19,10 @@ import type { UserProfile } from "@/lib/types";
 function DriverInfo({ driverId }: { driverId: string }) {
   const firestore = useFirestore();
   const { isUserLoading } = useUser();
-  const [driverDocRef, setDriverDocRef] = useState<DocumentReference<DocumentData> | null>(null);
 
-  useEffect(() => {
-    if (!isUserLoading && firestore && driverId) {
-      setDriverDocRef(doc(firestore, 'users', driverId));
-    }
+  const driverDocRef = useMemoFirebase(() => {
+    if (isUserLoading || !firestore || !driverId) return null;
+    return doc(firestore, 'users', driverId);
   }, [firestore, driverId, isUserLoading]);
 
 
