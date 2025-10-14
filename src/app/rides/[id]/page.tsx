@@ -208,22 +208,7 @@ export default function RideDetailPage() {
 
         </div>
         <div className="space-y-6">
-          {ride.offererId && !isUserLoading && <DriverInfo driverId={ride.offererId} />}
-          {isUserLoading && (
-            <Card className="text-center">
-                <CardHeader>
-                  <CardTitle className="font-headline">Driver</CardTitle>
-                </CardHeader>
-                <CardContent className="flex flex-col items-center gap-4">
-                    <Skeleton className="w-24 h-24 rounded-full"/>
-                    <div className="space-y-2">
-                        <Skeleton className="h-6 w-32" />
-                        <Skeleton className="h-4 w-24" />
-                    </div>
-                    <Skeleton className="h-10 w-full" />
-                </CardContent>
-            </Card>
-          )}
+          {ride.offererId && <DriverInfo driverId={ride.offererId} />}
           <Card>
             <CardHeader>
               <CardTitle className="font-headline">Passengers</CardTitle>
