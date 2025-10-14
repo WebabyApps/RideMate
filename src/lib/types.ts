@@ -1,9 +1,12 @@
-export type User = {
+import { Timestamp } from 'firebase/firestore';
+
+export type UserProfile = {
   id: string;
-  name: string;
+  firstName: string;
+  lastName: string;
+  email: string;
   avatarUrl: string;
   rating: number;
-  memberSince: Date;
 };
 
 export type Ride = {
@@ -11,9 +14,9 @@ export type Ride = {
   offererId: string;
   origin: string;
   destination: string;
-  departureTime: Date;
+  departureTime: Timestamp;
   availableSeats: number;
   totalSeats: number;
-  price: number;
-  passengers: User[];
+  cost: number;
+  riderIds: string[];
 };

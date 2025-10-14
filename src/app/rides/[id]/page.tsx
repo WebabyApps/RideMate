@@ -13,19 +13,19 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
 import { RideMap } from "@/components/ride-map";
 import { useState, useEffect } from "react";
+import type { Ride } from '@/lib/types';
+import type { UserProfile } from "@/lib/types";
 
 function DriverInfo({ driverId }: { driverId: string }) {
   const firestore = useFirestore();
   const { isUserLoading } = useUser();
-  const [driverDocRef, setDriverDocRef] = useState<any>(null);
 
-  useEffect(() => {
-    if (firestore && driverId && !isUserLoading) {
-      setDriverDocRef(doc(firestore, 'users', driverId));
-    }
+  const driverDocRef = useMemoFirebase(() => {
+    if (isUserLoading || !firestore || !driverId) return null;
+    return doc(firestore, 'users', driverId);
   }, [firestore, driverId, isUserLoading]);
 
-  const { data: driver, isLoading: isDriverLoading } = useDoc(driverDocRef);
+  const { data: driver, isLoading: isDriverLoading } = useDoc<UserProfile>(driverDocRef);
 
   if (isDriverLoading) {
     return (
@@ -85,15 +85,12 @@ export default function RideDetailPage() {
   const params = useParams();
   const rideId = typeof params.id === 'string' ? params.id : '';
 
-  const [rideDocRef, setRideDocRef] = useState<any>(null);
-
-  useEffect(() => {
-    if (firestore && rideId) {
-      setRideDocRef(doc(firestore, 'rides', rideId));
-    }
+  const rideDocRef = useMemoFirebase(() => {
+    if (!firestore || !rideId) return null;
+    return doc(firestore, 'rides', rideId);
   }, [firestore, rideId]);
 
-  const { data: ride, isLoading: isRideLoading } = useDoc<any>(rideDocRef);
+  const { data: ride, isLoading: isRideLoading } = useDoc<Ride>(rideDocRef);
 
   const handleBookSeat = () => {
     if (!user) {
