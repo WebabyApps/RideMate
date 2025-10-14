@@ -53,6 +53,7 @@ export default function ProfilePage() {
   const firestore = useFirestore();
   const { toast } = useToast();
   const [isProfileDialogOpen, setProfileDialogOpen] = useState(false);
+  const [userDocRef, setUserDocRef] = useState<any>(null);
 
   const form = useForm<z.infer<typeof profileSchema>>({
     resolver: zodResolver(profileSchema),
@@ -61,10 +62,17 @@ export default function ProfilePage() {
     },
   });
 
-  const userDocRef = useMemoFirebase(() => {
-    if (isUserLoading || !user || !firestore) return null;
-    return doc(firestore, 'users', user.uid);
-  }, [firestore, user, isUserLoading]);
+  useEffect(() => {
+    // Redirect if auth is done and there's no user
+    if (!isUserLoading && !user) {
+      router.push('/login');
+    }
+    // Set the doc ref only when auth is done and we have a user
+    if (!isUserLoading && user && firestore) {
+      setUserDocRef(doc(firestore, 'users', user.uid));
+    }
+  }, [user, isUserLoading, router, firestore]);
+
 
   const { data: userProfile, isLoading: isProfileLoading } = useDoc(userDocRef);
 
@@ -74,12 +82,6 @@ export default function ProfilePage() {
   }, [firestore, user, isUserLoading]);
 
   const { data: userRides, isLoading: areRidesLoading } = useCollection(userRidesQuery);
-
-  useEffect(() => {
-    if (!isUserLoading && !user) {
-      router.push('/login');
-    }
-  }, [user, isUserLoading, router]);
 
   useEffect(() => {
     if (userProfile) {

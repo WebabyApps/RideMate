@@ -1,7 +1,6 @@
 'use client';
 
 import { useRouter, useParams, notFound } from "next/navigation";
-import Image from "next/image";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -12,16 +11,19 @@ import { useDoc, useUser, useFirestore, updateDocumentNonBlocking, useMemoFireba
 import { doc, arrayUnion } from "firebase/firestore";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
-import { useEffect, useState } from "react";
 import { RideMap } from "@/components/ride-map";
+import { useState, useEffect } from "react";
 
 function DriverInfo({ driverId }: { driverId: string }) {
   const firestore = useFirestore();
   const { isUserLoading } = useUser();
+  const [driverDocRef, setDriverDocRef] = useState<any>(null);
 
-  const driverDocRef = useMemoFirebase(() => {
-    if (!firestore || !driverId || isUserLoading) return null;
-    return doc(firestore, 'users', driverId);
+  useEffect(() => {
+    // Only set the doc ref if auth is done and we have the required info
+    if (!isUserLoading && firestore && driverId) {
+      setDriverDocRef(doc(firestore, 'users', driverId));
+    }
   }, [firestore, driverId, isUserLoading]);
 
   const { data: driver, isLoading: isDriverLoading } = useDoc(driverDocRef);
@@ -119,7 +121,7 @@ export default function RideDetailPage() {
     });
   };
 
-  if (isRideLoading) {
+  if (isRideLoading || isUserLoading) {
     return (
         <div className="container mx-auto max-w-5xl px-4 md:px-6 py-8">
             <div className="grid md:grid-cols-3 gap-8">

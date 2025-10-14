@@ -6,17 +6,20 @@ import { Button } from '@/components/ui/button';
 import { ArrowRight, MapPin, Calendar, Clock, Users, DollarSign } from 'lucide-react';
 import { format } from 'date-fns';
 import { Skeleton } from './ui/skeleton';
+import type { Ride } from '@/lib/types';
 
 type RideCardProps = {
-  ride: any; // Using 'any' for now to accommodate Firestore data structure
+  ride: Ride;
 };
 
 export function RideCard({ ride }: RideCardProps) {
-  
   if (!ride) {
     return <Skeleton className="h-96 w-full" />;
   }
-  
+
+  // Convert Firestore Timestamp to Date if necessary
+  const departureDate = ride.departureTime instanceof Date ? ride.departureTime : ride.departureTime.toDate();
+
   return (
     <Card className="flex flex-col h-full overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300">
       <CardContent className="flex-grow grid gap-4 p-6">
@@ -37,11 +40,11 @@ export function RideCard({ ride }: RideCardProps) {
         <div className="grid grid-cols-2 gap-4 text-sm mt-2 pt-4 border-t">
             <div className="flex items-center gap-2">
                 <Calendar className="w-4 h-4 text-muted-foreground" />
-                <span>{ride.departureTime ? format(ride.departureTime.toDate(), 'MMM d, yyyy') : 'N/A'}</span>
+                <span>{format(departureDate, 'MMM d, yyyy')}</span>
             </div>
             <div className="flex items-center gap-2">
                 <Clock className="w-4 h-4 text-muted-foreground" />
-                <span>{ride.departureTime ? format(ride.departureTime.toDate(), 'p') : 'N/A'}</span>
+                <span>{format(departureDate, 'p')}</span>
             </div>
             <div className="flex items-center gap-2">
                 <Users className="w-4 h-4 text-muted-foreground" />
@@ -49,7 +52,7 @@ export function RideCard({ ride }: RideCardProps) {
             </div>
             <div className="flex items-center gap-2">
                 <DollarSign className="w-4 h-4 text-muted-foreground" />
-                <span className="font-bold text-lg text-accent">{ride.cost.toFixed(2)}</span>
+                <span className="font-bold text-lg text-accent">${ride.cost.toFixed(2)}</span>
             </div>
         </div>
       </CardContent>
