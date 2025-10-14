@@ -9,11 +9,10 @@ import { StarRating } from "@/components/star-rating";
 import { Calendar, Clock, Users, DollarSign, MessageSquare, AlertCircle, User as UserIcon } from "lucide-react";
 import { format } from 'date-fns';
 import { useDoc, useUser, useFirestore, updateDocumentNonBlocking, useMemoFirebase } from "@/firebase";
-import { doc, arrayUnion, DocumentReference, DocumentData } from "firebase/firestore";
+import { doc, arrayUnion } from "firebase/firestore";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
 import { RideMap } from "@/components/ride-map";
-import { useState, useEffect } from "react";
 import type { Ride } from '@/lib/types';
 import type { UserProfile } from "@/lib/types";
 
@@ -124,16 +123,16 @@ function DriverInfo({ driverId }: { driverId: string }) {
 
 
 export default function RideDetailPage() {
-  const { user, isUserLoading } = useUser();
+  const { user } = useUser();
   const router = useRouter();
   const firestore = useFirestore();
   const params = useParams();
   const rideId = typeof params.id === 'string' ? params.id : '';
 
   const rideDocRef = useMemoFirebase(() => {
-    if (isUserLoading || !firestore || !rideId) return null;
+    if (!firestore || !rideId) return null;
     return doc(firestore, 'rides', rideId);
-  }, [firestore, rideId, isUserLoading]);
+  }, [firestore, rideId]);
 
   const { data: ride, isLoading: isRideLoading } = useDoc<Ride>(rideDocRef);
 
@@ -165,9 +164,9 @@ export default function RideDetailPage() {
     });
   };
 
-  const isLoading = isRideLoading || isUserLoading;
+  const isLoading = isRideLoading;
 
-  if (isLoading || !ride) {
+  if (isLoading) {
     return (
         <div className="container mx-auto max-w-5xl px-4 md:px-6 py-8">
             <div className="grid md:grid-cols-3 gap-8">
@@ -266,7 +265,7 @@ export default function RideDetailPage() {
             </CardContent>
           </Card>
            <div className="sticky top-24">
-            <Button size="lg" className="w-full text-lg font-bold bg-accent hover:bg-accent/90 text-accent-foreground" onClick={handleBookSeat} disabled={isUserLoading || ride.availableSeats === 0 || (!!user && (ride.offererId === user.uid || ride.riderIds?.includes(user.uid)))}>
+            <Button size="lg" className="w-full text-lg font-bold bg-accent hover:bg-accent/90 text-accent-foreground" onClick={handleBookSeat} disabled={ride.availableSeats === 0 || (!!user && (ride.offererId === user.uid || ride.riderIds?.includes(user.uid)))}>
               {ride.availableSeats > 0 ? 'Book a Seat' : 'Ride Full'}
             </Button>
            </div>

@@ -1,5 +1,5 @@
 'use client';
-import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
+import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
 import { RideCard } from "@/components/ride-card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -17,12 +17,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export default function RidesPage() {
   const firestore = useFirestore();
-  const { isUserLoading } = useUser();
 
   const ridesQuery = useMemoFirebase(() => {
-    if (!firestore || isUserLoading) return null;
+    if (!firestore) return null;
     return query(collection(firestore, 'rides'), orderBy('departureTime', 'asc'));
-  }, [firestore, isUserLoading]);
+  }, [firestore]);
 
   const { data: rides, isLoading } = useCollection(ridesQuery);
 
@@ -83,6 +82,11 @@ export default function RidesPage() {
         {rides && rides.map(ride => (
           <RideCard key={ride.id} ride={ride} />
         ))}
+        {!isLoading && rides?.length === 0 && (
+          <div className="col-span-full text-center py-10 border-2 border-dashed rounded-lg">
+            <p className="text-muted-foreground">No rides available at the moment. Check back soon!</p>
+          </div>
+        )}
       </div>
     </div>
   );
