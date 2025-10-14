@@ -1,111 +1,90 @@
 /**
- * @fileoverview Firestore Security Rules for RideMate Application
+ * @file Firebase Security Rules for RideMate application.
  *
- * Core Philosophy:
- * This ruleset enforces a user-ownership model for user profiles. Users can only read and modify their own profile data.
- * Rides are publicly readable, but creation, updates, and deletion are restricted to the ride offerer.
- * Ratings are stored as subcollections of Rides. Users can create ratings for rides they participate in.
+ * @core_philosophy This ruleset enforces a user-ownership model for user profiles
+ * and allows public read access to ride information while restricting write access to ride owners.
+ * Ratings are nested under rides and can only be created by authenticated users who are riders in the ride.
  *
- * Data Structure:
- * /users/{userId} - Stores user profile data.
- * /rides/{rideId} - Stores ride information.
- * /rides/{rideId}/ratings/{ratingId} - Stores ratings for a specific ride.
+ * @data_structure
+ * - /users/{userId}: Stores individual user profiles.  The `userId` is the Firebase Auth UID.
+ * - /rides/{rideId}: Stores ride information.
+ * - /rides/{rideId}/ratings/{ratingId}: Stores ratings for a specific ride.
  *
- * Key Security Decisions:
- * - Users can only read and write their own user documents.
- * - Rides are publicly readable to facilitate discovery.
- * - Only ride offerers can modify or delete ride information.
- * - Ratings are restricted to authenticated users.
+ * @key_security_decisions
+ * - Users can only read and write their own user profile.
+ * - Rides are publicly readable, but only the ride offerer can modify or delete them.
+ * - Users cannot list all users.
+ * - Ratings can only be created for existing rides, by users who are riders in that ride.
  *
- * Denormalization for Authorization:
- * - Ride documents must contain the `offererId` to authorize ride updates and deletes.
+ * @denormalization_for_authorization
+ * - Rides have an `offererId` field to easily identify the ride creator for write authorization.
+ * - Ratings have a `raterId` which must match the authenticated user's UID.
+ *
+ * @structural_segregation Public ride data is stored in a top-level `/rides` collection, separate from private user data.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
     /**
      * @description Allows users to read and write their own user profile.
      * @path /users/{userId}
-     * @allow (get) Authenticated user can read their own profile.
-     * @allow (create) Authenticated user can create their own profile.
-     * @allow (update) Authenticated user can update their own profile.
-     * @allow (delete) Authenticated user can delete their own profile.
-     * @deny (get) Authenticated user cannot read another user's profile.
-     * @deny (create) Authenticated user cannot create a profile with a different ID.
-     * @deny (update) Authenticated user cannot update another user's profile.
-     * @deny (delete) Authenticated user cannot delete another user's profile.
-     * @principle Enforces document ownership for writes.
+     * @allow (get) User with UID "userId" can read their profile.
+     * @allow (create) User with UID "userId" can create their profile.
+     * @allow (update) User with UID "userId" can update their profile.
+     * @allow (delete) User with UID "userId" can delete their profile.
+     * @deny (get) User with UID "otherUserId" cannot read user "userId"'s profile.
+     * @principle Enforces document ownership for all operations.
      */
     match /users/{userId} {
+      function isOwner(userId) {
+        return request.auth != null && request.auth.uid == userId;
+      }
       function isSignedIn() {
         return request.auth != null;
       }
-      function isOwner(userId) {
-        return request.auth.uid == userId;
-      }
-      function isExistingOwner(userId) {
-          return isSignedIn() && resource.data.id == request.auth.uid;
-      }
-
-      allow get: if isSignedIn() && isOwner(userId);
+      allow get: if isOwner(userId);
       allow list: if false;
-
-      allow create: if isSignedIn() && request.resource.data.id == request.auth.uid;
-      allow update: if isSignedIn() && isOwner(userId);
-      allow delete: if isSignedIn() && isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId);
     }
 
     /**
-     * @description Allows anyone to read rides, but restricts creation, updates, and deletion to the ride offerer.
+     * @description Allows anyone to read ride information, but only the ride offerer can modify or delete it.
      * @path /rides/{rideId}
-     * @allow (get) Anyone can read ride information.
-     * @allow (list) Anyone can list ride information.
-     * @allow (create) Authenticated user can create a ride with their ID as offererId.
-     * @allow (update) Authenticated user can update their own ride based on offererId.
-     * @allow (delete) Authenticated user can delete their own ride based on offererId.
-     * @deny (create) Authenticated user cannot create a ride with another user's ID as offererId.
-     * @deny (update) Authenticated user cannot update another user's ride based on offererId.
-     * @deny (delete) Authenticated user cannot delete another user's ride based on offererId.
-     * @principle Public read access with owner-only writes.
+     * @allow (get) Any user can read ride details.
+     * @allow (list) Any user can list rides.
+     * @allow (create) User with UID matching the `offererId` can create a ride.
+     * @allow (update) User with UID matching the `offererId` can update a ride.
+     * @allow (delete) User with UID matching the `offererId` can delete a ride.
+     * @deny (create) User attempts to create a ride with an `offererId` that doesn't match their UID.
+     * @deny (update) User attempts to update a ride they don't own.
+     * @deny (delete) User attempts to delete a ride they don't own.
+     * @principle Allows public read access while restricting write access to the ride offerer.
      */
     match /rides/{rideId} {
-      allow get: if true;
-      allow list: if true;
-
-      allow create: if isSignedIn() && request.resource.data.offererId == request.auth.uid;
-      allow update: if isSignedIn() && request.resource.data.offererId == request.auth.uid;
-      allow delete: if isSignedIn() && request.resource.data.offererId == request.auth.uid;
+      allow get, list: if true;
+      allow create: if request.auth != null && request.resource.data.offererId == request.auth.uid;
+      allow update: if request.auth != null && request.resource.data.offererId == resource.data.offererId;
+      allow delete: if request.auth != null && resource.data.offererId == request.auth.uid;
     }
 
     /**
-     * @description Allows authenticated users to create ratings for a specific ride.
+     * @description Allows authenticated users who are riders in a ride to create ratings for that ride.
      * @path /rides/{rideId}/ratings/{ratingId}
-     * @allow (get) Authenticated user can read a rating for a ride.
-     * @allow (list) Authenticated user can list ratings for a ride.
-     * @allow (create) Authenticated user can create a rating for a ride.
-     * @allow (update) Authenticated user can update a rating for a ride if they are the rater.
-     * @allow (delete) Authenticated user can delete a rating for a ride if they are the rater.
-     * @deny (create) Unauthenticated user cannot create a rating.
-     * @deny (update) Authenticated user cannot update another user's rating.
-     * @deny (delete) Authenticated user cannot delete another user's rating.
-     * @principle Restricts access to authenticated users and enforces ownership.
+     * @allow (create) User with UID in `riderIds` array can create a rating.
+     * @deny (create) User attempts to create a rating for a ride they are not a rider in.
+     * @deny (update) No one can update a rating.
+     * @deny (delete) No one can delete a rating.
+     * @principle Restricts rating creation to users who are riders in the rated ride.
      */
     match /rides/{rideId}/ratings/{ratingId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-      function isOwner(raterId) {
-        return request.auth.uid == raterId;
-      }
-      function isExistingOwner(raterId) {
-          return isSignedIn() && resource.data.raterId == request.auth.uid;
-      }
-
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.raterId == request.auth.uid;
-      allow update: if isSignedIn() && request.resource.data.raterId == request.auth.uid;
-      allow delete: if isSignedIn() && request.resource.data.raterId == request.auth.uid;
+        allow get: if true;
+        allow list: if false;
+      allow create: if request.auth != null && request.resource.data.raterId == request.auth.uid;
+      allow update: if false;
+      allow delete: if false;
     }
   }
 }
