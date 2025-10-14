@@ -27,7 +27,7 @@ function DriverInfo({ driverId }: { driverId: string }) {
 
   const { data: driver, isLoading: isDriverLoading } = useDoc<UserProfile>(driverDocRef);
 
-  if (isDriverLoading) {
+  if (isDriverLoading || isUserLoading) {
     return (
         <Card className="text-center">
             <CardHeader>
