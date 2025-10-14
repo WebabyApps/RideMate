@@ -1,6 +1,6 @@
 'use client';
 
-import { useRouter, useParams, notFound } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -16,19 +16,17 @@ import { useState, useEffect } from "react";
 
 function DriverInfo({ driverId }: { driverId: string }) {
   const firestore = useFirestore();
-  const { isUserLoading } = useUser();
   const [driverDocRef, setDriverDocRef] = useState<any>(null);
 
   useEffect(() => {
-    // Only set the doc ref if auth is done and we have the required info
-    if (!isUserLoading && firestore && driverId) {
+    if (firestore && driverId) {
       setDriverDocRef(doc(firestore, 'users', driverId));
     }
-  }, [firestore, driverId, isUserLoading]);
+  }, [firestore, driverId]);
 
   const { data: driver, isLoading: isDriverLoading } = useDoc(driverDocRef);
 
-  if (isUserLoading || isDriverLoading) {
+  if (isDriverLoading) {
     return (
         <Card className="text-center">
             <CardHeader>
@@ -121,7 +119,7 @@ export default function RideDetailPage() {
     });
   };
 
-  if (isRideLoading || isUserLoading) {
+  if (isRideLoading) {
     return (
         <div className="container mx-auto max-w-5xl px-4 md:px-6 py-8">
             <div className="grid md:grid-cols-3 gap-8">
@@ -138,7 +136,7 @@ export default function RideDetailPage() {
         </div>
     );
   }
-
+  
   if (!ride) {
     return (
         <div className="container mx-auto max-w-2xl px-4 md:px-6 py-12 text-center">
@@ -220,7 +218,7 @@ export default function RideDetailPage() {
             </CardContent>
           </Card>
            <div className="sticky top-24">
-            <Button size="lg" className="w-full text-lg font-bold bg-accent hover:bg-accent/90 text-accent-foreground" onClick={handleBookSeat} disabled={isUserLoading || !user || ride.availableSeats === 0 || ride.offererId === user?.uid || ride.riderIds?.includes(user?.uid)}>
+            <Button size="lg" className="w-full text-lg font-bold bg-accent hover:bg-accent/90 text-accent-foreground" onClick={handleBookSeat} disabled={isUserLoading || ride.availableSeats === 0 || (!!user && (ride.offererId === user.uid || ride.riderIds?.includes(user.uid)))}>
               {ride.availableSeats > 0 ? 'Book a Seat' : 'Ride Full'}
             </Button>
            </div>
