@@ -12,16 +12,8 @@ let firestore: Firestore;
 // Initialize Firebase services once and export them as singletons.
 // This is crucial for stability and prevents re-initialization on re-renders.
 if (!getApps().length) {
-  try {
-    // For Firebase App Hosting, this will be initialized with environment variables.
-    firebaseApp = initializeApp();
-  } catch (e) {
-    if (process.env.NODE_ENV === "production") {
-      console.warn('Automatic initialization failed. Falling back to firebase config object.', e);
-    }
     // For local development, it uses the config object.
     firebaseApp = initializeApp(firebaseConfig);
-  }
 } else {
   firebaseApp = getApp();
 }
