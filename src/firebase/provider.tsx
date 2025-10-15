@@ -4,23 +4,21 @@ import React, { createContext, useContext, ReactNode, useMemo, useState, useEffe
 import { FirebaseApp } from 'firebase/app';
 import { Firestore } from 'firebase/firestore';
 import { Auth, User, onAuthStateChanged } from 'firebase/auth';
-import { initializeFirebase } from '@/firebase';
+import { auth as singletonAuth, firestore as singletonFirestore, firebaseApp as singletonApp } from '@/firebase';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener'
 
 // --- Context Definitions ---
 
-// Context for stable Firebase service instances
 interface FirebaseServicesContextState {
   firebaseApp: FirebaseApp;
   firestore: Firestore;
   auth: Auth;
 }
 
-// Context for dynamic user authentication state
 interface UserAuthStateContextState {
   user: User | null;
-  isUserLoading: boolean; // True during initial auth check
-  userError: Error | null; // Error from auth listener
+  isUserLoading: boolean; 
+  userError: Error | null; 
 }
 
 // --- Context Creation ---
@@ -30,17 +28,13 @@ const UserAuthStateContext = createContext<UserAuthStateContextState | undefined
 
 // --- Provider Component ---
 
-// Initialize services once at the module level. This is crucial for stability.
-const { firebaseApp, firestore, auth } = initializeFirebase();
-
 /**
  * FirebaseProvider manages and provides Firebase services and user authentication state.
- * It separates stable service instances from the dynamic authentication state to prevent
- * unnecessary re-renders and race conditions.
+ * It uses the singleton instances of services initialized outside of the React tree for stability.
  */
 export const FirebaseProvider: React.FC<{children: ReactNode}> = ({ children }) => {
   const [userAuthState, setUserAuthState] = useState<UserAuthStateContextState>({
-    user: auth.currentUser, // Initialize with current user, if any
+    user: singletonAuth.currentUser, 
     isUserLoading: true,
     userError: null,
   });
@@ -48,7 +42,7 @@ export const FirebaseProvider: React.FC<{children: ReactNode}> = ({ children }) 
   // Set up the authentication state listener. This runs only once.
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(
-      auth,
+      singletonAuth,
       (firebaseUser) => {
         setUserAuthState({ user: firebaseUser, isUserLoading: false, userError: null });
       },
@@ -58,21 +52,15 @@ export const FirebaseProvider: React.FC<{children: ReactNode}> = ({ children }) 
       }
     );
     
-    // If onAuthStateChanged hasn't fired but we know there's no user, stop loading.
-    // This handles the initial non-logged-in state.
-    if (!auth.currentUser && userAuthState.isUserLoading) {
-      setUserAuthState(prev => ({ ...prev, isUserLoading: false }));
-    }
-
-    return () => unsubscribe(); // Cleanup listener on unmount
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Cleanup listener on unmount
+    return () => unsubscribe(); 
   }, []);
 
-  // The services context value is memoized and NEVER changes. This is the key to stability.
+  // The services context value is memoized with the singleton instances and NEVER changes.
   const servicesValue = useMemo((): FirebaseServicesContextState => ({
-    firebaseApp,
-    firestore,
-    auth,
+    firebaseApp: singletonApp,
+    firestore: singletonFirestore,
+    auth: singletonAuth,
   }), []);
 
   return (
@@ -96,17 +84,17 @@ function useFirebaseServices() {
   return context;
 }
 
-/** Hook to access Firebase Auth instance. Throws if not available. */
+/** Hook to access Firebase Auth instance. */
 export const useAuth = (): Auth => {
   return useFirebaseServices().auth;
 };
 
-/** Hook to access Firestore instance. Throws if not available. */
+/** Hook to access Firestore instance. */
 export const useFirestore = (): Firestore => {
   return useFirebaseServices().firestore;
 };
 
-/** Hook to access Firebase App instance. Throws if not available. */
+/** Hook to access Firebase App instance. */
 export const useFirebaseApp = (): FirebaseApp => {
   return useFirebaseServices().firebaseApp;
 };
@@ -127,7 +115,7 @@ export function useMemoFirebase<T>(factory: () => T, deps: React.DependencyList)
 }
 
 /**
- * Hook specifically for accessing the authenticated user's state.
+ * Hook for accessing the authenticated user's state.
  * @returns {UserAuthStateContextState} Object with user, isUserLoading, userError.
  */
 export const useUser = (): UserAuthStateContextState => {
