@@ -87,11 +87,6 @@ export default function RidesPage() {
             <p className="text-muted-foreground">No rides available at the moment. Check back soon!</p>
           </div>
         )}
-        {!isLoading && rides?.length === 0 && (
-          <div className="col-span-full text-center py-10 border-2 border-dashed rounded-lg">
-            <p className="text-muted-foreground">No rides available at the moment. Check back soon!</p>
-          </div>
-        )}
       </div>
     </div>
   );

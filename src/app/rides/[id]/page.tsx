@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { StarRating } from "@/components/star-rating";
-import { Calendar, Clock, Users, DollarSign, MessageSquare, AlertCircle, User as UserIcon } from "lucide-react";
+import { Calendar, Clock, Users, DollarSign, MessageSquare, AlertCircle } from "lucide-react";
 import { format } from 'date-fns';
 import { useDoc, useUser, useFirestore, updateDocumentNonBlocking, useMemoFirebase } from "@/firebase";
 import { doc, arrayUnion } from "firebase/firestore";
@@ -147,7 +147,9 @@ export default function RideDetailPage() {
                 <h1 className="mt-4 text-3xl font-bold tracking-tight text-foreground sm:text-5xl">Ride Not Found</h1>
                 <p className="mt-6 text-base leading-7 text-muted-foreground">Sorry, we couldn’t find the ride you’re looking for.</p>
                 <div className="mt-10 flex items-center justify-center gap-x-6">
-                    <Button onClick={() => router.push('/rides')}>Go back to rides</Button>
+                    <Button asChild>
+                      <Link href="/rides">Go back to rides</Link>
+                    </Button>
                 </div>
             </Card>
         </div>
