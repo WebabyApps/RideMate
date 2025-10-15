@@ -72,16 +72,21 @@ export default function RidesPage() {
       </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {isLoading && (
+        {isLoading ? (
           <>
             <Skeleton className="h-[28rem] w-full" />
             <Skeleton className="h-[28rem] w-full" />
             <Skeleton className="h-[28rem] w-full" />
           </>
+        ) : rides && rides.length > 0 ? (
+          rides.map(ride => (
+            <RideCard key={ride.id} ride={ride} />
+          ))
+        ) : (
+          <div className="col-span-full text-center py-10 border-2 border-dashed rounded-lg">
+            <p className="text-muted-foreground">No rides available at the moment. Check back soon!</p>
+          </div>
         )}
-        {rides && rides.map(ride => (
-          <RideCard key={ride.id} ride={ride} />
-        ))}
         {!isLoading && rides?.length === 0 && (
           <div className="col-span-full text-center py-10 border-2 border-dashed rounded-lg">
             <p className="text-muted-foreground">No rides available at the moment. Check back soon!</p>
