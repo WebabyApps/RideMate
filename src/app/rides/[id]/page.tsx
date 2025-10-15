@@ -18,7 +18,6 @@ import Link from 'next/link';
 
 function DriverInfo({ driverId }: { driverId: string }) {
   const firestore = useFirestore();
-  const { user, isUserLoading } = useUser();
 
   const driverDocRef = useMemoFirebase(() => {
     if (!firestore || !driverId) return null;
@@ -27,12 +26,7 @@ function DriverInfo({ driverId }: { driverId: string }) {
 
   const { data: driver, isLoading: isDriverLoading } = useDoc<UserProfile>(driverDocRef);
 
-  const isOwnProfile = user?.uid === driverId;
-  const hasJoinedRide = false; // This needs to be determined from the parent ride state
-  const canViewDriverProfile = isOwnProfile || hasJoinedRide;
-
-
-  if (isDriverLoading || isUserLoading) {
+  if (isDriverLoading) {
     return (
       <Card className="text-center">
         <CardHeader>
@@ -59,33 +53,6 @@ function DriverInfo({ driverId }: { driverId: string }) {
       </Card>
     );
   }
-  
-  if (!canViewDriverProfile) {
-    return (
-      <Card className="text-center">
-        <CardHeader>
-          <CardTitle className="font-headline">Driver</CardTitle>
-          <CardDescription>Driver details are shared after you join the ride.</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col items-center gap-4">
-          <Avatar className="w-24 h-24 border-4 border-muted">
-             <AvatarImage src={driver.avatarUrl} alt={`${driver.firstName} ${driver.lastName}`} />
-            <AvatarFallback>
-              <UserIcon className="h-10 w-10 text-muted-foreground" />
-            </AvatarFallback>
-          </Avatar>
-           <div className="text-center">
-             <p className="font-bold text-xl">{`${driver.firstName} ${driver.lastName}`}</p>
-             <StarRating rating={driver.rating || 0} className="justify-center mt-1" />
-           </div>
-          <p className="text-sm text-muted-foreground pt-4 border-t w-full">
-            Request a seat to connect with the driver.
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
-
 
   return (
     <Card className="text-center">
