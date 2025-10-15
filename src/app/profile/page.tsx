@@ -69,16 +69,16 @@ export default function ProfilePage() {
   }, [user, isUserLoading, router]);
 
   const userDocRef = useMemoFirebase(() => {
-    if (!firestore || isUserLoading || !user) return null;
+    if (!firestore || !user) return null;
     return doc(firestore, 'users', user.uid);
-  }, [firestore, user, isUserLoading]);
+  }, [firestore, user]);
 
   const { data: userProfile, isLoading: isProfileLoading } = useDoc(userDocRef);
 
   const userRidesQuery = useMemoFirebase(() => {
-    if (!firestore || isUserLoading || !user) return null;
+    if (!firestore || !user?.uid) return null;
     return query(collection(firestore, 'rides'), where('offererId', '==', user.uid));
-  }, [firestore, user, isUserLoading]);
+  }, [firestore, user?.uid]);
 
   const { data: userRides, isLoading: areRidesLoading } = useCollection(userRidesQuery);
 
