@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Terminal, Bot, Zap, Clock, Route, DollarSign, CalendarClock, MapPin, Trash2, PlusCircle } from 'lucide-react';
+import { Terminal, Bot, Zap, Clock, Route, DollarSign, CalendarClock, Trash2, PlusCircle } from 'lucide-react';
 import { WaypointMap } from '@/components/waypoint-map';
 import type { OptimizeCarpoolRouteOutput } from '@/ai/flows/optimize-carpool-route';
 import { cn } from '@/lib/utils';
@@ -94,7 +94,7 @@ export default function OptimizeRoutePage() {
 
     const formData = new FormData(event.currentTarget);
     const waypoints = [origin, ...stops, destination].filter(Boolean);
-    const waypointsLatLng = waypoints.join(';'); // The API flow can handle addresses
+    const waypointsLatLng = waypoints.join(';');
 
     const payload = {
       currentRoute: formData.get('currentRoute'),
@@ -166,7 +166,7 @@ export default function OptimizeRoutePage() {
             <Bot className="h-8 w-8 text-primary" /> AI Route Optimizer
           </CardTitle>
           <CardDescription>
-            Enter your route details below. You can click on an input field and then click the map to set a location.
+            Enter your route details below. You can click an input field then click the map to set a location, or type an address directly.
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>

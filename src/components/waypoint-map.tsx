@@ -19,6 +19,13 @@ const MapComponent: React.FC<WaypointMapProps> = ({ waypoints, onMapClick, activ
   const ref = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<google.maps.Map>();
   const directionsRendererRef = useRef<google.maps.DirectionsRenderer | null>(null);
+  const markersRef = useRef<google.maps.Marker[]>([]);
+
+  // Function to clear existing markers from the map
+  const clearMarkers = () => {
+    markersRef.current.forEach(marker => marker.setMap(null));
+    markersRef.current = [];
+  };
 
   // Initialize map
   useEffect(() => {
@@ -58,52 +65,87 @@ const MapComponent: React.FC<WaypointMapProps> = ({ waypoints, onMapClick, activ
 
   // Update route when waypoints change
   useEffect(() => {
-    if (map) {
-      // Initialize directions renderer
-      if (!directionsRendererRef.current) {
-        directionsRendererRef.current = new google.maps.DirectionsRenderer();
-      }
-      directionsRendererRef.current.setMap(map);
-
-      const validWaypoints = waypoints.filter(wp => wp.trim() !== '');
-
-      if (validWaypoints.length > 1) {
-        const directionsService = new google.maps.DirectionsService();
-        const origin = validWaypoints[0];
-        const destination = validWaypoints[validWaypoints.length - 1];
-        const intermediateWaypoints = validWaypoints.slice(1, -1).map(wp => ({
-          location: wp,
-          stopover: true,
-        }));
-
-        directionsService.route(
-          {
-            origin,
-            destination,
-            waypoints: intermediateWaypoints,
-            travelMode: google.maps.TravelMode.DRIVING,
-          },
-          (result, status) => {
-            if (status === google.maps.DirectionsStatus.OK) {
-              directionsRendererRef.current?.setDirections(result);
-            } else if (status === google.maps.DirectionsStatus.ZERO_RESULTS || status === google.maps.DirectionsStatus.NOT_FOUND) {
-                // This is expected when addresses are partial.
-                // Clear the route instead of logging an error.
-                if (directionsRendererRef.current) {
-                  directionsRendererRef.current.setDirections({routes: []});
-                }
-            } else {
-              // For other errors, it's still useful to log them.
-              console.error(`Directions request failed due to ${status}`);
-            }
-          }
-        );
-      } else {
-        // Clear route if less than 2 waypoints
-        if (directionsRendererRef.current) {
-          directionsRendererRef.current.setDirections({routes: []});
+    if (!map) return;
+  
+    // Initialize directions renderer if it doesn't exist
+    if (!directionsRendererRef.current) {
+      directionsRendererRef.current = new google.maps.DirectionsRenderer({ suppressMarkers: true });
+    }
+    directionsRendererRef.current.setMap(map);
+  
+    // Always clear previous markers and routes
+    clearMarkers();
+    directionsRendererRef.current.setDirections({ routes: [] });
+  
+    const geocoder = new google.maps.Geocoder();
+    const validWaypoints = waypoints.filter(wp => wp && wp.trim() !== '');
+  
+    if (validWaypoints.length === 0) {
+      return; // Nothing to display
+    }
+  
+    if (validWaypoints.length === 1) {
+      // Handle a single waypoint: geocode and place a marker
+      geocoder.geocode({ address: validWaypoints[0] }, (results, status) => {
+        if (status === 'OK' && results && results[0]) {
+          const location = results[0].geometry.location;
+          const marker = new google.maps.Marker({
+            position: location,
+            map: map,
+          });
+          markersRef.current.push(marker);
+          map.setCenter(location);
+          map.setZoom(12);
         }
-      }
+      });
+    } else {
+      // Handle multiple waypoints: calculate and display the route
+      const directionsService = new google.maps.DirectionsService();
+      const origin = validWaypoints[0];
+      const destination = validWaypoints[validWaypoints.length - 1];
+      const intermediateWaypoints = validWaypoints.slice(1, -1).map(wp => ({
+        location: wp,
+        stopover: true,
+      }));
+  
+      directionsService.route(
+        {
+          origin,
+          destination,
+          waypoints: intermediateWaypoints,
+          travelMode: google.maps.TravelMode.DRIVING,
+        },
+        (result, status) => {
+          if (status === google.maps.DirectionsStatus.OK && result) {
+            directionsRendererRef.current?.setDirections(result);
+            
+            // Add markers for the route
+            result.routes[0].legs.forEach((leg, i) => {
+                // Origin marker for the first leg
+                if(i === 0) {
+                    const startMarker = new google.maps.Marker({
+                        position: leg.start_location,
+                        map: map,
+                        label: 'A'
+                    });
+                    markersRef.current.push(startMarker);
+                }
+
+                // Destination marker for each leg (B, C, ...)
+                const endMarker = new google.maps.Marker({
+                    position: leg.end_location,
+                    map: map,
+                    label: String.fromCharCode(65 + i + 1)
+                });
+                markersRef.current.push(endMarker);
+            });
+
+
+          } else if (status !== google.maps.DirectionsStatus.ZERO_RESULTS && status !== google.maps.DirectionsStatus.NOT_FOUND) {
+            console.error(`Directions request failed due to ${status}`);
+          }
+        }
+      );
     }
   }, [map, waypoints]);
 
