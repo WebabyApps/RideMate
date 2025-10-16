@@ -8,10 +8,11 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Terminal, Bot, Zap, Clock, Route, DollarSign, CalendarClock } from 'lucide-react';
+import { Terminal, Bot, Zap, Clock, Route, DollarSign, CalendarClock, MapPin, Trash2 } from 'lucide-react';
+import { WaypointMap } from '@/components/waypoint-map';
 
 const initialState: FormState = {
   status: 'idle',
@@ -37,6 +38,7 @@ function SubmitButton() {
 
 export default function OptimizeRoutePage() {
   const [state, formAction] = useActionState(optimizeRouteAction, initialState);
+  const [waypoints, setWaypoints] = useState<google.maps.LatLngLiteral[]>([]);
 
   useEffect(() => {
     if (state.status === 'error') {
@@ -53,6 +55,15 @@ export default function OptimizeRoutePage() {
     }
   }, [state]);
 
+  const handleWaypointsChange = (newWaypoints: google.maps.LatLngLiteral[]) => {
+    setWaypoints(newWaypoints);
+  };
+  
+  const removeWaypoint = (indexToRemove: number) => {
+    setWaypoints(waypoints.filter((_, index) => index !== indexToRemove));
+  };
+
+
   return (
     <div className="container mx-auto max-w-4xl px-4 md:px-6 py-8">
       <Card className="shadow-lg">
@@ -61,24 +72,45 @@ export default function OptimizeRoutePage() {
             <Bot className="h-8 w-8 text-primary" /> AI Route Optimizer
           </CardTitle>
           <CardDescription>
-            Let our AI find the best route for your carpool, considering traffic, waypoints, and arrival times.
+            Let our AI find the best route. Click on the map to add waypoints for your carpool.
           </CardDescription>
         </CardHeader>
         <form action={formAction}>
           <CardContent className="space-y-6">
+            <div className="space-y-2">
+                <Label>Waypoints</Label>
+                <p className="text-sm text-muted-foreground">Click on the map to add waypoints in order. The first is origin, the last is destination.</p>
+                <div className="h-96 w-full rounded-md overflow-hidden border">
+                    <WaypointMap waypoints={waypoints} onWaypointsChange={handleWaypointsChange} />
+                </div>
+                 <input type="hidden" name="waypoints" value={waypoints.map(w => `${w.lat},${w.lng}`).join(';')} />
+
+                {waypoints.length > 0 && (
+                    <div className="space-y-2 pt-2">
+                        {waypoints.map((waypoint, index) => (
+                            <div key={index} className="flex items-center justify-between p-2 rounded-md bg-secondary/50 text-sm">
+                                <div className="flex items-center gap-2">
+                                    <MapPin className="h-4 w-4 text-muted-foreground" />
+                                    <span>{`Waypoint ${index + 1}: ${waypoint.lat.toFixed(4)}, ${waypoint.lng.toFixed(4)}`}</span>
+                                </div>
+                                <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeWaypoint(index)}>
+                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                     <Label htmlFor="currentRoute">Current Route Description</Label>
-                    <Textarea id="currentRoute" name="currentRoute" placeholder="e.g., 'Taking I-280 South from SF to Googleplex'" required />
+                    <Textarea id="currentRoute" name="currentRoute" placeholder="e.g., 'Morning commute to the office with a stop at the coffee shop.'" required />
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="trafficConditions">Current Traffic Conditions</Label>
-                    <Textarea id="trafficConditions" name="trafficConditions" placeholder="e.g., 'Heavy traffic on US-101 near Palo Alto'" required />
+                    <Textarea id="trafficConditions" name="trafficConditions" placeholder="e.g., 'Usual morning traffic, minor congestion on the bridge.'" required />
                 </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="waypoints">Waypoints (comma-separated addresses)</Label>
-              <Textarea id="waypoints" name="waypoints" placeholder="e.g., '123 Main St, SF', '456 Oak Ave, Palo Alto', '1600 Amphitheatre Pkwy, Mountain View'" required />
             </div>
              <div className="space-y-2">
               <Label htmlFor="arrivalTimePreferences">Arrival Time Preferences</Label>

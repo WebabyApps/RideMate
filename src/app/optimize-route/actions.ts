@@ -6,6 +6,7 @@ import { z } from 'zod';
 const OptimizeCarpoolRouteInputSchema = z.object({
   currentRoute: z.string().min(1, 'Current route is required.'),
   trafficConditions: z.string().min(1, 'Traffic conditions are required.'),
+  // Waypoints are now lat/lng pairs separated by semicolons. e.g., "lat1,lng1;lat2,lng2"
   waypoints: z.string().min(1, 'At least one waypoint is required.'),
   arrivalTimePreferences: z.string().min(1, 'Arrival time preferences are required.'),
 });
@@ -41,7 +42,8 @@ export async function optimizeRouteAction(
   }
   
   try {
-    const waypointsArray = validatedFields.data.waypoints.split(',').map(w => w.trim());
+    // The flow expects an array of strings. We'll send the lat/lng pairs as strings.
+    const waypointsArray = validatedFields.data.waypoints.split(';').map(w => w.trim());
 
     const result = await optimizeCarpoolRoute({
       ...validatedFields.data,
