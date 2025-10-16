@@ -1,15 +1,12 @@
-import {genkit, type Genkit} from 'genkit';
-import {googleAI} from '@genkit-ai/google-genai';
-import {nextPlugin} from '@genkit-ai/next';
+import { configure } from '@genkit-ai/ai';
+import { googleCloud } from '@genkit-ai/google-cloud';
+import { nextPlugin } from '@genkit-ai/next';
 
-export const ai: Genkit = genkit({
+export const ai = configure({
   plugins: [
-    googleAI({
-      apiVersion: 'v1beta',
-    }),
+    googleCloud(),
     nextPlugin(),
   ],
-  model: 'googleai/gemini-2.5-flash',
-  enableTracing: true,
   logLevel: 'debug',
+  enableTracing: true,
 });

@@ -8,8 +8,8 @@
  * - OptimizeCarpoolRouteOutput - The return type for the optimizeCarpoolRoute function.
  */
 
-import {ai} from '@/ai/genkit-server';
-import {z} from 'genkit';
+import { ai } from '@/ai/genkit-server';
+import { z } from 'zod';
 
 const OptimizeCarpoolRouteInputSchema = z.object({
   currentRoute: z.string().describe('A general text description of the carpool plan or goal (e.g., "morning commute to work").'),
@@ -31,7 +31,7 @@ export async function optimizeCarpoolRoute(input: OptimizeCarpoolRouteInput): Pr
   return optimizeCarpoolRouteFlow(input);
 }
 
-const prompt = ai.definePrompt({
+const prompt = ai.prompt({
   name: 'optimizeCarpoolRoutePrompt',
   input: {schema: OptimizeCarpoolRouteInputSchema},
   output: {schema: OptimizeCarpoolRouteOutputSchema},
@@ -59,14 +59,14 @@ Please provide the optimized plan in the required structured format. Your optimi
 `,
 });
 
-const optimizeCarpoolRouteFlow = ai.defineFlow(
+const optimizeCarpoolRouteFlow = ai.flow(
   {
     name: 'optimizeCarpoolRouteFlow',
     inputSchema: OptimizeCarpoolRouteInputSchema,
     outputSchema: OptimizeCarpoolRouteOutputSchema,
   },
   async input => {
-    const {output} = await prompt(input);
+    const {output} = await prompt.generate(input);
     return output!;
   }
 );
