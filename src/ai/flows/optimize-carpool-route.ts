@@ -3,15 +3,16 @@
 /**
  * @fileOverview A carpool route optimization AI agent.
  *
- * - optimizeCarpoolRoute - A function that optimizes carpool routes.
- * - OptimizeCarpoolRouteInput - The input type for the optimizeCarpoolRoute function.
- * - OptimizeCarpoolRouteOutput - The return type for the optimizeCarpoolRoute function.
+ * This file defines the Genkit flow for optimizing carpool routes.
+ * It is intended to be called from a server environment (e.g., an API route).
  */
 
-import { genkit } from '@/ai/genkit-server';
+import { ai } from 'genkit';
+import { googleAI } from '@genkit-ai/google-genai';
 import { z } from 'zod';
 
-const OptimizeCarpoolRouteInputSchema = z.object({
+// Define the Zod schemas for input and output
+export const OptimizeCarpoolRouteInputSchema = z.object({
   currentRoute: z.string().describe('A general text description of the carpool plan or goal (e.g., "morning commute to work").'),
   trafficConditions: z.string().describe('Real-time traffic conditions along the general route area (e.g., "heavy congestion on the main highway").'),
   waypoints: z.array(z.string()).describe('An ordered list of waypoints. Each waypoint is a string containing latitude,longitude coordinates (e.g., ["37.7749,-122.4194", "37.3861,-122.0839"]). The first waypoint is the origin, the last is the final destination.'),
@@ -19,7 +20,7 @@ const OptimizeCarpoolRouteInputSchema = z.object({
 });
 export type OptimizeCarpoolRouteInput = z.infer<typeof OptimizeCarpoolRouteInputSchema>;
 
-const OptimizeCarpoolRouteOutputSchema = z.object({
+export const OptimizeCarpoolRouteOutputSchema = z.object({
   optimizedRoute: z.string().describe('The optimized carpool route, describing the sequence of pickups and drop-offs. Refer to waypoints by their order (e.g., "Start at Waypoint 1, pick up passenger at Waypoint 2, then proceed to destination at Waypoint 3.").'),
   estimatedTravelTime: z.string().describe('The estimated total travel time for the optimized route in minutes or hours.'),
   suggestedDepartureTime: z.string().describe('The single suggested departure time from the origin (Waypoint 1) to meet all arrival preferences, formatted as HH:MM AM/PM.'),
@@ -27,14 +28,19 @@ const OptimizeCarpoolRouteOutputSchema = z.object({
 });
 export type OptimizeCarpoolRouteOutput = z.infer<typeof OptimizeCarpoolRouteOutputSchema>;
 
-export async function optimizeCarpoolRoute(input: OptimizeCarpoolRouteInput): Promise<OptimizeCarpoolRouteOutput> {
-  return optimizeCarpoolRouteFlow(input);
-}
+// Initialize Genkit with the Google AI plugin
+ai.configure({
+  plugins: [googleAI()],
+  logLevel: 'debug',
+  enableTracing: true,
+});
 
-const prompt = genkit.definePrompt({
+
+// Define the AI prompt for route optimization
+const optimizeCarpoolRoutePrompt = ai.definePrompt({
   name: 'optimizeCarpoolRoutePrompt',
-  input: {schema: OptimizeCarpoolRouteInputSchema},
-  output: {schema: OptimizeCarpoolRouteOutputSchema},
+  input: { schema: OptimizeCarpoolRouteInputSchema },
+  output: { schema: OptimizeCarpoolRouteOutputSchema },
   prompt: `You are a world-class route optimization expert specializing in creating efficient and cost-effective carpool routes. Your primary goal is to determine the optimal order of visiting waypoints and suggest the best departure time to meet all constraints.
 
 You will be provided with the following information:
@@ -59,19 +65,20 @@ Please provide the optimized plan in the required structured format. Your optimi
 `,
 });
 
-const optimizeCarpoolRouteFlow = genkit.defineFlow(
+// Define the main flow that executes the prompt
+export const optimizeCarpoolRouteFlow = ai.defineFlow(
   {
     name: 'optimizeCarpoolRouteFlow',
     inputSchema: OptimizeCarpoolRouteInputSchema,
     outputSchema: OptimizeCarpoolRouteOutputSchema,
   },
-  async input => {
-    const { output } = await genkit.generate({
-        prompt,
-        input,
-        model: 'googleai/gemini-pro',
+  async (input) => {
+    const response = await ai.generate({
+      prompt: optimizeCarpoolRoutePrompt,
+      input,
+      model: 'googleai/gemini-pro',
     });
-
-    return output!;
+    
+    return response.output()!;
   }
 );

@@ -1,18 +1,22 @@
 'use client';
 
-import { useActionState } from 'react';
-import { useFormStatus } from 'react-dom';
-import { optimizeRouteAction, type FormState } from './actions';
+import { useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { useEffect, useState } from 'react';
 import { toast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Terminal, Bot, Zap, Clock, Route, DollarSign, CalendarClock, MapPin, Trash2 } from 'lucide-react';
 import { WaypointMap } from '@/components/waypoint-map';
+import type { OptimizeCarpoolRouteOutput } from '@/ai/flows/optimize-carpool-route';
+
+type FormState = {
+  status: 'idle' | 'loading' | 'success' | 'error';
+  message: string;
+  data?: OptimizeCarpoolRouteOutput;
+};
 
 const initialState: FormState = {
   status: 'idle',
@@ -20,10 +24,10 @@ const initialState: FormState = {
 };
 
 function SubmitButton() {
-  const { pending } = useFormStatus();
+  const [isPending, startTransition] = useTransition();
   return (
-    <Button type="submit" disabled={pending} size="lg" className="w-full font-bold bg-accent hover:bg-accent/90 text-accent-foreground">
-      {pending ? (
+    <Button type="submit" disabled={isPending} size="lg" className="w-full font-bold bg-accent hover:bg-accent/90 text-accent-foreground">
+      {isPending ? (
         <>
           <Bot className="mr-2 h-5 w-5 animate-spin" /> Optimizing...
         </>
@@ -37,23 +41,9 @@ function SubmitButton() {
 }
 
 export default function OptimizeRoutePage() {
-  const [state, formAction] = useActionState(optimizeRouteAction, initialState);
+  const [state, setState] = useState<FormState>(initialState);
+  const [isPending, startTransition] = useTransition();
   const [waypoints, setWaypoints] = useState<google.maps.LatLngLiteral[]>([]);
-
-  useEffect(() => {
-    if (state.status === 'error') {
-      toast({
-        variant: 'destructive',
-        title: 'Optimization Failed',
-        description: state.message,
-      });
-    } else if (state.status === 'success') {
-      toast({
-        title: 'Success!',
-        description: state.message,
-      });
-    }
-  }, [state]);
 
   const handleWaypointsChange = (newWaypoints: google.maps.LatLngLiteral[]) => {
     setWaypoints(newWaypoints);
@@ -61,6 +51,56 @@ export default function OptimizeRoutePage() {
   
   const removeWaypoint = (indexToRemove: number) => {
     setWaypoints(waypoints.filter((_, index) => index !== indexToRemove));
+  };
+
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const payload = {
+      currentRoute: formData.get('currentRoute'),
+      trafficConditions: formData.get('trafficConditions'),
+      waypoints: formData.get('waypoints'),
+      arrivalTimePreferences: formData.get('arrivalTimePreferences'),
+    };
+
+    setState({ ...initialState, status: 'loading' });
+
+    startTransition(async () => {
+      try {
+        const response = await fetch('/api/optimize-route', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.message || 'An error occurred.');
+        }
+
+        setState({
+          status: 'success',
+          message: 'Route optimized successfully!',
+          data: result.data,
+        });
+        toast({
+          title: 'Success!',
+          description: 'Route optimized successfully!',
+        });
+
+      } catch (error: any) {
+         setState({
+          status: 'error',
+          message: error.message || 'An unexpected error occurred.',
+        });
+        toast({
+          variant: 'destructive',
+          title: 'Optimization Failed',
+          description: error.message,
+        });
+      }
+    });
   };
 
 
@@ -75,7 +115,7 @@ export default function OptimizeRoutePage() {
             Let our AI find the best route. Click on the map to add waypoints for your carpool.
           </CardDescription>
         </CardHeader>
-        <form action={formAction}>
+        <form onSubmit={handleSubmit}>
           <CardContent className="space-y-6">
             <div className="space-y-2">
                 <Label>Waypoints</Label>
