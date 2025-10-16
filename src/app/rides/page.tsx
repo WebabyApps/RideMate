@@ -12,18 +12,55 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { collection, query, orderBy } from "firebase/firestore";
+import { collection, query, orderBy, where } from "firebase/firestore";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useState } from "react";
 
 export default function RidesPage() {
   const firestore = useFirestore();
+  const [origin, setOrigin] = useState('');
+  const [destination, setDestination] = useState('');
+  const [sort, setSort] = useState('recommended');
+
 
   const ridesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return query(collection(firestore, 'rides'), orderBy('departureTime', 'asc'));
-  }, [firestore]);
+    let q = query(collection(firestore, 'rides'));
+
+    if (origin) {
+        q = query(q, where('origin', '>=', origin), where('origin', '<=', origin + '\uf8ff'));
+    }
+    if (destination) {
+        q = query(q, where('destination', '>=', destination), where('destination', '<=', destination + '\uf8ff'));
+    }
+
+    switch (sort) {
+        case 'price-asc':
+            q = query(q, orderBy('cost', 'asc'));
+            break;
+        case 'price-desc':
+            q = query(q, orderBy('cost', 'desc'));
+            break;
+        case 'departure-asc':
+            q = query(q, orderBy('departureTime', 'asc'));
+            break;
+        default:
+             q = query(q, orderBy('departureTime', 'asc'));
+            break;
+    }
+
+
+    return q;
+  }, [firestore, origin, destination, sort]);
 
   const { data: rides, isLoading } = useCollection(ridesQuery);
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const formData = new FormData(e.target as HTMLFormElement);
+    setOrigin(formData.get('from') as string);
+    setDestination(formData.get('to') as string);
+  }
 
   return (
     <div className="container mx-auto px-4 md:px-6 py-8">
@@ -34,24 +71,24 @@ export default function RidesPage() {
 
       <Card className="mb-8 shadow-md">
         <CardContent className="p-4 sm:p-6">
-          <form className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+          <form onSubmit={handleSearch} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
             <div className="space-y-2">
               <label htmlFor="from" className="text-sm font-medium">From</label>
               <div className="relative">
                 <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                <Input id="from" placeholder="e.g., San Francisco" className="pl-10" />
+                <Input name="from" id="from" placeholder="e.g., San Francisco" className="pl-10" />
               </div>
             </div>
             <div className="space-y-2">
               <label htmlFor="to" className="text-sm font-medium">To</label>
                <div className="relative">
                 <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                <Input id="to" placeholder="e.g., Los Angeles" className="pl-10" />
+                <Input name="to" id="to" placeholder="e.g., Los Angeles" className="pl-10" />
               </div>
             </div>
              <div className="space-y-2">
                 <label htmlFor="sort" className="text-sm font-medium">Sort by</label>
-                <Select>
+                <Select onValueChange={setSort} defaultValue={sort}>
                     <SelectTrigger id="sort">
                         <SelectValue placeholder="Recommended" />
                     </SelectTrigger>

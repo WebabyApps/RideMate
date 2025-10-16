@@ -230,7 +230,7 @@ export default function ProfilePage() {
                     <Card key={ride.id} className="p-4 flex justify-between items-center">
                         <div>
                             <p className="font-bold">{ride.origin} to {ride.destination}</p>
-                            <p className="text-sm text-muted-foreground">{format(ride.departureTime.toDate(), 'PPpp')}</p>
+                            <p className="text-sm text-muted-foreground">{ride.departureTime ? format(ride.departureTime.toDate(), 'PPpp') : ''}</p>
                             <p className="text-sm">${ride.cost} per seat - {ride.availableSeats} seats left</p>
                         </div>
                         <AlertDialog>

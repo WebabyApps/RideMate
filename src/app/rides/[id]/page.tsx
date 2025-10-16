@@ -78,7 +78,7 @@ function DriverInfo({ driverId }: { driverId: string }) {
 
 
 export default function RideDetailPage() {
-  const { user, isUserLoading } = useUser();
+  const { user } = useUser();
   const router = useRouter();
   const firestore = useFirestore();
   const params = useParams();
@@ -119,7 +119,7 @@ export default function RideDetailPage() {
     });
   };
 
-  const isLoading = isRideLoading || isUserLoading;
+  const isLoading = isRideLoading;
 
   if (isLoading) {
     return (
