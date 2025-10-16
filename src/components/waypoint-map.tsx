@@ -10,63 +10,43 @@ const render = (status: Status) => {
 };
 
 interface WaypointMapProps {
-  waypoints: google.maps.LatLngLiteral[];
-  onWaypointsChange: (waypoints: google.maps.LatLngLiteral[]) => void;
+  waypoints: string[];
 }
 
-const MapComponent: React.FC<WaypointMapProps> = ({ waypoints, onWaypointsChange }) => {
+const MapComponent: React.FC<WaypointMapProps> = ({ waypoints }) => {
   const ref = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<google.maps.Map>();
-  const [markers, setMarkers] = useState<google.maps.Marker[]>([]);
   const directionsRendererRef = useRef<google.maps.DirectionsRenderer | null>(null);
 
   // Initialize map
   useEffect(() => {
     if (ref.current && !map) {
       const newMap = new window.google.maps.Map(ref.current, {
-        center: { lat: 37.7749, lng: -122.4194 }, // Default to SF
+        center: { lat: 40.7128, lng: -74.0060 }, // Default to NYC
         zoom: 8,
         streetViewControl: false,
         mapTypeControl: false,
       });
       setMap(newMap);
-
-      newMap.addListener('click', (e: google.maps.MapMouseEvent) => {
-        if (e.latLng) {
-          const newWaypoint = { lat: e.latLng.lat(), lng: e.latLng.lng() };
-          onWaypointsChange([...waypoints, newWaypoint]);
-        }
-      });
     }
-  }, [ref, map, onWaypointsChange, waypoints]);
+  }, [ref, map]);
 
-  // Update markers and route when waypoints change
+  // Update route when waypoints change
   useEffect(() => {
     if (map) {
-      // Clear old markers
-      markers.forEach(marker => marker.setMap(null));
-      const newMarkers = waypoints.map((position, index) => {
-        return new google.maps.Marker({
-          position,
-          map,
-          label: `${index + 1}`,
-        });
-      });
-      setMarkers(newMarkers);
-
       // Initialize directions renderer
       if (!directionsRendererRef.current) {
-        directionsRendererRef.current = new google.maps.DirectionsRenderer({
-            suppressMarkers: true, // We are using our own markers
-        });
+        directionsRendererRef.current = new google.maps.DirectionsRenderer();
       }
       directionsRendererRef.current.setMap(map);
 
-      if (waypoints.length > 1) {
+      const validWaypoints = waypoints.filter(wp => wp.trim() !== '');
+
+      if (validWaypoints.length > 1) {
         const directionsService = new google.maps.DirectionsService();
-        const origin = waypoints[0];
-        const destination = waypoints[waypoints.length - 1];
-        const intermediateWaypoints = waypoints.slice(1, -1).map(wp => ({
+        const origin = validWaypoints[0];
+        const destination = validWaypoints[validWaypoints.length - 1];
+        const intermediateWaypoints = validWaypoints.slice(1, -1).map(wp => ({
           location: wp,
           stopover: true,
         }));
@@ -81,9 +61,11 @@ const MapComponent: React.FC<WaypointMapProps> = ({ waypoints, onWaypointsChange
           (result, status) => {
             if (status === google.maps.DirectionsStatus.OK) {
               directionsRendererRef.current?.setDirections(result);
+            } else if (status === google.maps.DirectionsStatus.ZERO_RESULTS) {
+                // Do nothing, wait for better address
+                directionsRendererRef.current?.setDirections({routes: []});
             } else {
               console.error(`Directions request failed due to ${status}`);
-              // Clear previous route if new one fails
               directionsRendererRef.current?.setDirections({routes: []});
             }
           }
@@ -93,14 +75,13 @@ const MapComponent: React.FC<WaypointMapProps> = ({ waypoints, onWaypointsChange
         directionsRendererRef.current.setDirections({routes: []});
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, waypoints]);
 
   return <div ref={ref} style={{ width: '100%', height: '100%' }} />;
 }
 
 
-export const WaypointMap: React.FC<WaypointMapProps> = ({ waypoints, onWaypointsChange }) => {
+export const WaypointMap: React.FC<WaypointMapProps> = ({ waypoints }) => {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
   if (!apiKey) {
@@ -113,7 +94,7 @@ export const WaypointMap: React.FC<WaypointMapProps> = ({ waypoints, onWaypoints
   
   return (
     <Wrapper apiKey={apiKey} render={render}>
-      <MapComponent waypoints={waypoints} onWaypointsChange={onWaypointsChange} />
+      <MapComponent waypoints={waypoints} />
     </Wrapper>
   )
 }
