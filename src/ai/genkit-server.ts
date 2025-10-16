@@ -1,5 +1,7 @@
+'server-only';
+
 import {genkit, type Genkit} from 'genkit';
-import {googleAI} from '@genkit-ai/google-genai';
+import {googleAI} from '@gen-ai/google-genai';
 
 // This instance does NOT include the Next.js plugin and is safe for server-side use.
 export const ai: Genkit = genkit({
