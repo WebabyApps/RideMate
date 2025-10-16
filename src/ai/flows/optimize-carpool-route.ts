@@ -8,7 +8,7 @@
  * - OptimizeCarpoolRouteOutput - The return type for the optimizeCarpoolRoute function.
  */
 
-import { ai } from '@/ai/genkit-server';
+import { genkit } from '@/ai/genkit-server';
 import { z } from 'zod';
 
 const OptimizeCarpoolRouteInputSchema = z.object({
@@ -31,7 +31,7 @@ export async function optimizeCarpoolRoute(input: OptimizeCarpoolRouteInput): Pr
   return optimizeCarpoolRouteFlow(input);
 }
 
-const prompt = ai.prompt({
+const prompt = genkit.definePrompt({
   name: 'optimizeCarpoolRoutePrompt',
   input: {schema: OptimizeCarpoolRouteInputSchema},
   output: {schema: OptimizeCarpoolRouteOutputSchema},
@@ -43,7 +43,7 @@ You will be provided with the following information:
 - An ordered list of geographic waypoints (as "latitude,longitude" strings). This list represents the origin (index 0), one or more passenger pickups, and the final destination (last index). The initial order is not optimized.
 - The preferred or required arrival times for participants associated with specific waypoints.
 
-Your task is to analyze this data and generate a comprehensive, optimized carpool plan. You must:
+Your task is to analyze this data and generate a comprehensive, optimized plan. You must:
 1.  Determine the most efficient sequence of travel between all waypoints to minimize travel time and cost. The final destination must be the last stop.
 2.  Calculate the total travel time based on the optimized route and traffic conditions.
 3.  Suggest a single, precise departure time from the origin (Waypoint 1) that ensures all participants arrive at their respective destinations on time.
@@ -59,14 +59,19 @@ Please provide the optimized plan in the required structured format. Your optimi
 `,
 });
 
-const optimizeCarpoolRouteFlow = ai.flow(
+const optimizeCarpoolRouteFlow = genkit.defineFlow(
   {
     name: 'optimizeCarpoolRouteFlow',
     inputSchema: OptimizeCarpoolRouteInputSchema,
     outputSchema: OptimizeCarpoolRouteOutputSchema,
   },
   async input => {
-    const {output} = await prompt.generate(input);
-    return output!;
+    const llmResponse = await genkit.generate({
+        prompt,
+        input,
+        model: 'googleai/gemini-pro',
+    });
+
+    return llmResponse.output()!;
   }
 );

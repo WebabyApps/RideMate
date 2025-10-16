@@ -1,12 +1,12 @@
 'server-only';
 
-import { configure } from '@genkit-ai/ai';
-import { googleCloud } from '@genkit-ai/google-cloud';
+import { ai } from 'genkit';
+import { googleAI } from '@genkit-ai/google-genai';
 
 // This instance does NOT include the Next.js plugin and is safe for server-side use.
-export const ai = configure({
+export const genkit = ai({
   plugins: [
-    googleCloud(),
+    googleAI(),
   ],
   logLevel: 'debug',
   enableTracing: true,

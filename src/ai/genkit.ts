@@ -1,10 +1,10 @@
-import { configure } from '@genkit-ai/ai';
-import { googleCloud } from '@genkit-ai/google-cloud';
+import { ai } from 'genkit';
+import { googleAI } from '@genkit-ai/google-genai';
 import { nextPlugin } from '@genkit-ai/next';
 
-export const ai = configure({
+export const genkit = ai({
   plugins: [
-    googleCloud(),
+    googleAI(),
     nextPlugin(),
   ],
   logLevel: 'debug',
