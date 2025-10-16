@@ -1,85 +1,25 @@
-/**
- * @fileoverview Firestore Security Rules for RideMate application.
- *
- * Core Philosophy:
- * This ruleset enforces a user-ownership model for user profiles and
- * allows public read access for rides. Ratings are scoped to individual rides
- * and can only be created by authenticated users.
- *
- * Data Structure:
- * - /users/{userId}: Stores user profiles, accessible only to the user themselves.
- * - /rides/{rideId}: Stores ride information, publicly readable.
- * - /rides/{rideId}/ratings/{ratingId}: Stores ratings for a specific ride,
- *   creatable by authenticated users.
- *
- * Key Security Decisions:
- * - Users can only read and write their own profile data.
- * - Rides are publicly readable, but write access is not granted in this ruleset.
- * - Ratings can only be created for existing rides.
- *
- * Denormalization for Authorization:
- * - The `Ride` entity lacks explicit ownership.
- * - Ratings should denormalize raterId and ratedRideId.
- *
- * Structural Segregation:
- * - User profiles are stored in a dedicated /users collection.
- */
+
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    /**
-     * @description Protects user profiles, ensuring only the user can access their own data.
-     * @path /users/{userId}
-     * @allow (get, create, update, delete) User with ID 'user123' can access /users/user123.
-     * @deny (get, create, update, delete) User with ID 'user123' cannot access /users/user456.
-     * @principle Enforces document ownership for all operations.
-     */
     match /users/{userId} {
-      allow get: if isSignedIn() && isOwner(userId);
-      allow list: if false;
-      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.id == userId;
-      allow update: if isSignedIn() && isExistingOwner(userId) && request.resource.data.id == resource.data.id;
-      allow delete: if isSignedIn() && isExistingOwner(userId);
+      // Allow public read of user profiles.
+      allow read: if true;
+      // Allow users to create and update their own profile.
+      allow write: if request.auth != null && request.auth.uid == userId;
     }
 
-    /**
-     * @description Allows public read access to ride information, while restricting writes.
-     * @path /rides/{rideId}
-     * @allow (get, list) Any user can read ride information.
-     * @deny (create, update, delete) No user can create, update, or delete ride information through these rules.
-     * @principle Allows public read access with owner-only writes (missing owner field).
-     */
     match /rides/{rideId} {
-      allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
-    }
+      // Allow public read of all rides.
+      allow read: if true;
 
-    /**
-     * @description Manages ratings for a specific ride, ensuring only authenticated users can create ratings.
-     * @path /rides/{rideId}/ratings/{ratingId}
-     * @allow (create) Authenticated user can create a rating for a ride.
-     * @deny (get, list, update, delete) No user can read, list, update, or delete ratings directly.
-     * @principle Restricts access to authenticated users for creation.
-     */
-    match /rides/{rideId}/ratings/{ratingId} {
-      allow get: if false;
-      allow list: if false;
-      allow create: if isSignedIn() && request.resource.data.raterId == request.auth.uid && request.resource.data.ratedRideId == rideId;
-      allow update: if false;
-      allow delete: if false;
-    }
+      // Allow authenticated users to create rides for themselves.
+      allow create: if request.auth != null && request.resource.data.offererId == request.auth.uid;
 
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-
-    function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
+      // Allow the ride offerer to update or delete the ride.
+      allow update, delete: if request.auth != null && resource.data.offererId == request.auth.uid;
     }
   }
 }
