@@ -4,8 +4,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
-import { collection, doc, serverTimestamp } from 'firebase/firestore';
+import { useEffect, useState, useMemo, useCallback } from "react";
+import { collection, serverTimestamp } from 'firebase/firestore';
 
 import { Button } from "@/components/ui/button";
 import {
@@ -26,6 +26,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { useFirestore, useUser, addDocumentNonBlocking } from "@/firebase";
 import { useToast } from "@/hooks/use-toast";
+import { WaypointMap } from "@/components/waypoint-map";
 
 const rideSchema = z.object({
   origin: z.string().min(3, "Origin must be at least 3 characters long."),
@@ -41,6 +42,7 @@ export default function OfferRidePage() {
   const router = useRouter();
   const firestore = useFirestore();
   const { toast } = useToast();
+  const [activeWaypointInput, setActiveWaypointInput] = useState<string | null>(null);
 
   const form = useForm<z.infer<typeof rideSchema>>({
     resolver: zodResolver(rideSchema),
@@ -52,6 +54,22 @@ export default function OfferRidePage() {
       price: 10,
     },
   });
+  
+  const origin = form.watch('origin');
+  const destination = form.watch('destination');
+
+  const allWaypoints = useMemo(() => [origin, destination].filter(Boolean), [origin, destination]);
+
+  const handleMapClick = useCallback((address: string) => {
+    if (!activeWaypointInput) return;
+
+    if (activeWaypointInput === 'origin') {
+        form.setValue('origin', address);
+    } else if (activeWaypointInput === 'destination') {
+        form.setValue('destination', address);
+    }
+    setActiveWaypointInput(null);
+  }, [activeWaypointInput, form]);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -106,7 +124,7 @@ export default function OfferRidePage() {
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle className="font-headline text-3xl">Offer a Ride</CardTitle>
-          <CardDescription>Share your route and fill your empty seats. Google Maps integration will be used here for address input.</CardDescription>
+          <CardDescription>Share your route. Click an input, then click the map to set a location, or type an address.</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -119,7 +137,12 @@ export default function OfferRidePage() {
                     <FormItem>
                       <FormLabel>Origin</FormLabel>
                       <FormControl>
-                        <Input placeholder="e.g., 123 Main St, Anytown" {...field} />
+                        <Input 
+                          placeholder="e.g., 123 Main St, Anytown" 
+                          {...field} 
+                          onFocus={() => setActiveWaypointInput('origin')}
+                          className={cn(activeWaypointInput === 'origin' && 'ring-2 ring-primary ring-offset-2')}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -132,13 +155,23 @@ export default function OfferRidePage() {
                     <FormItem>
                       <FormLabel>Destination</FormLabel>
                       <FormControl>
-                        <Input placeholder="e.g., 456 Oak Ave, Otherville" {...field} />
+                        <Input 
+                           placeholder="e.g., 456 Oak Ave, Otherville" 
+                          {...field} 
+                          onFocus={() => setActiveWaypointInput('destination')}
+                          className={cn(activeWaypointInput === 'destination' && 'ring-2 ring-primary ring-offset-2')}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
               </div>
+
+               <div className="h-80 w-full rounded-md overflow-hidden border">
+                  <WaypointMap waypoints={allWaypoints} onMapClick={handleMapClick} activeInput={activeWaypointInput} />
+              </div>
+
 
                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                  <FormField

@@ -5,16 +5,17 @@ import { Wrapper, Status } from "@googlemaps/react-wrapper";
 import { Skeleton } from './ui/skeleton';
 
 const render = (status: Status) => {
-  if (status === Status.FAILURE) return <p>Error loading maps</p>;
+  if (status === Status.FAILURE) return <p>Error loading maps. Check API Key and network.</p>;
   return <Skeleton className="w-full h-full" />;
 };
 
 interface RideMapProps {
-  origin: string;
-  destination: string;
+  origin?: string;
+  destination?: string;
+  waypoints?: string[];
 }
 
-const MapComponent: React.FC<RideMapProps> = ({ origin, destination }) => {
+const MapComponent: React.FC<RideMapProps> = ({ origin, destination, waypoints }) => {
   const ref = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<google.maps.Map>();
 
@@ -29,34 +30,47 @@ const MapComponent: React.FC<RideMapProps> = ({ origin, destination }) => {
   }, [ref, map]);
 
   useEffect(() => {
-    if (map) {
-      const directionsService = new google.maps.DirectionsService();
-      const directionsRenderer = new google.maps.DirectionsRenderer();
-      directionsRenderer.setMap(map);
+    if (!map) return;
+    
+    const directionsService = new google.maps.DirectionsService();
+    const directionsRenderer = new google.maps.DirectionsRenderer();
+    directionsRenderer.setMap(map);
 
-      directionsService.route(
+    let requestOrigin = origin;
+    let requestDestination = destination;
+    let requestWaypoints = waypoints ? waypoints.slice(1, -1).map(wp => ({ location: wp, stopover: true })) : [];
+
+    if (waypoints && waypoints.length > 1) {
+        requestOrigin = waypoints[0];
+        requestDestination = waypoints[waypoints.length - 1];
+    } else if (!requestOrigin || !requestDestination) {
+      directionsRenderer.setDirections({routes: []});
+      return;
+    }
+
+    directionsService.route(
         {
-          origin: origin,
-          destination: destination,
+          origin: requestOrigin,
+          destination: requestDestination,
+          waypoints: requestWaypoints,
           travelMode: google.maps.TravelMode.DRIVING,
         },
         (result, status) => {
           if (status === google.maps.DirectionsStatus.OK) {
             directionsRenderer.setDirections(result);
-          } else {
+          } else if (status !== 'ZERO_RESULTS' && status !== 'NOT_FOUND') {
             console.error(`Directions request failed due to ${status}`);
           }
         }
       );
-    }
-  }, [map, origin, destination]);
+  }, [map, origin, destination, waypoints]);
 
 
   return <div ref={ref} style={{ width: '100%', height: '100%' }} />;
 }
 
 
-export const RideMap: React.FC<RideMapProps> = ({ origin, destination }) => {
+export const RideMap: React.FC<RideMapProps> = (props) => {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
   if (!apiKey) {
@@ -69,7 +83,7 @@ export const RideMap: React.FC<RideMapProps> = ({ origin, destination }) => {
   
   return (
     <Wrapper apiKey={apiKey} render={render}>
-      <MapComponent origin={origin} destination={destination} />
+      <MapComponent {...props} />
     </Wrapper>
   )
 }
