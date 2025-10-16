@@ -86,18 +86,23 @@ const MapComponent: React.FC<WaypointMapProps> = ({ waypoints, onMapClick, activ
           (result, status) => {
             if (status === google.maps.DirectionsStatus.OK) {
               directionsRendererRef.current?.setDirections(result);
-            } else if (status === google.maps.DirectionsStatus.ZERO_RESULTS) {
-                // Do nothing, wait for better address
-                directionsRendererRef.current?.setDirections({routes: []});
+            } else if (status === google.maps.DirectionsStatus.ZERO_RESULTS || status === google.maps.DirectionsStatus.NOT_FOUND) {
+                // This is expected when addresses are partial.
+                // Clear the route instead of logging an error.
+                if (directionsRendererRef.current) {
+                  directionsRendererRef.current.setDirections({routes: []});
+                }
             } else {
+              // For other errors, it's still useful to log them.
               console.error(`Directions request failed due to ${status}`);
-              directionsRendererRef.current?.setDirections({routes: []});
             }
           }
         );
       } else {
         // Clear route if less than 2 waypoints
-        directionsRendererRef.current.setDirections({routes: []});
+        if (directionsRendererRef.current) {
+          directionsRendererRef.current.setDirections({routes: []});
+        }
       }
     }
   }, [map, waypoints]);
