@@ -66,12 +66,12 @@ const optimizeCarpoolRouteFlow = genkit.defineFlow(
     outputSchema: OptimizeCarpoolRouteOutputSchema,
   },
   async input => {
-    const llmResponse = await genkit.generate({
+    const { output } = await genkit.generate({
         prompt,
         input,
         model: 'googleai/gemini-pro',
     });
 
-    return llmResponse.output()!;
+    return output!;
   }
 );
