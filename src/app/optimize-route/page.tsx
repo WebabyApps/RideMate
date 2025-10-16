@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Terminal, Bot, Zap, Clock, Route, DollarSign, CalendarClock, MapPin, Trash2, PlusCircle } from 'lucide-react';
 import { WaypointMap } from '@/components/waypoint-map';
 import type { OptimizeCarpoolRouteOutput } from '@/ai/flows/optimize-carpool-route';
+import { cn } from '@/lib/utils';
 
 type FormState = {
   status: 'idle' | 'loading' | 'success' | 'error';
@@ -24,7 +25,7 @@ const initialState: FormState = {
 };
 
 function SubmitButton() {
-  const [isPending, startTransition] = useTransition();
+  const [isPending] = useTransition();
   return (
     <Button type="submit" disabled={isPending} size="lg" className="w-full font-bold bg-accent hover:bg-accent/90 text-accent-foreground">
       {isPending ? (
@@ -45,9 +46,10 @@ export default function OptimizeRoutePage() {
   const [isPending, startTransition] = useTransition();
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
-  const [stops, setStops] = useState<string[]>(['']); // Start with one empty stop input
+  const [stops, setStops] = useState<string[]>(['']);
+  const [activeWaypointInput, setActiveWaypointInput] = useState<string | null>(null);
 
-  const allWaypoints = [origin, ...stops, destination].filter(Boolean);
+  const allWaypoints = useMemo(() => [origin, ...stops, destination].filter(Boolean), [origin, stops, destination]);
 
   const handleAddStop = () => {
     setStops([...stops, '']);
@@ -61,18 +63,27 @@ export default function OptimizeRoutePage() {
     const newStops = [...stops];
     newStops[index] = value;
     setStops(newStops);
-  }
+  };
+
+  const handleMapClick = (address: string) => {
+    if (!activeWaypointInput) return;
+
+    if (activeWaypointInput === 'origin') {
+        setOrigin(address);
+    } else if (activeWaypointInput === 'destination') {
+        setDestination(address);
+    } else if (activeWaypointInput.startsWith('stop-')) {
+        const index = parseInt(activeWaypointInput.split('-')[1], 10);
+        handleStopChange(index, address);
+    }
+    // Deactivate after setting
+    setActiveWaypointInput(null);
+  };
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    const waypoints = [
-        formData.get('origin') as string,
-        ...stops.map((_, index) => formData.get(`stop-${index}`) as string),
-        formData.get('destination') as string
-    ].filter(Boolean);
-
-    if (waypoints.length < 2) {
+    
+    if (origin.trim() === '' || destination.trim() === '') {
       toast({
         variant: "destructive",
         title: "Invalid Route",
@@ -81,10 +92,14 @@ export default function OptimizeRoutePage() {
       return;
     }
 
+    const formData = new FormData(event.currentTarget);
+    const waypoints = [origin, ...stops, destination].filter(Boolean);
+    const waypointsLatLng = waypoints.join(';'); // The API flow can handle addresses
+
     const payload = {
       currentRoute: formData.get('currentRoute'),
       trafficConditions: formData.get('trafficConditions'),
-      waypoints: waypoints.join(';'),
+      waypoints: waypointsLatLng,
       arrivalTimePreferences: formData.get('arrivalTimePreferences'),
     };
 
@@ -128,6 +143,20 @@ export default function OptimizeRoutePage() {
     });
   };
 
+  const WaypointInput = ({ id, value, onChange, placeholder, onFocus }: { id: string; value: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; placeholder: string; onFocus: () => void; }) => {
+    return (
+      <Input
+        id={id}
+        name={id}
+        placeholder={placeholder}
+        required={id === 'origin' || id === 'destination'}
+        value={value}
+        onChange={onChange}
+        onFocus={onFocus}
+        className={cn(activeWaypointInput === id && 'ring-2 ring-primary ring-offset-2')}
+      />
+    );
+  };
 
   return (
     <div className="container mx-auto max-w-4xl px-4 md:px-6 py-8">
@@ -137,7 +166,7 @@ export default function OptimizeRoutePage() {
             <Bot className="h-8 w-8 text-primary" /> AI Route Optimizer
           </CardTitle>
           <CardDescription>
-            Let our AI find the best route. Enter your origin, destination, and any stops along the way.
+            Enter your route details below. You can click on an input field and then click the map to set a location.
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
@@ -145,11 +174,11 @@ export default function OptimizeRoutePage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label htmlFor="origin">Origin</Label>
-                    <Input id="origin" name="origin" placeholder="Starting point address" required value={origin} onChange={(e) => setOrigin(e.target.value)} />
+                    <WaypointInput id="origin" value={origin} onChange={(e) => setOrigin(e.target.value)} placeholder="Starting point address" onFocus={() => setActiveWaypointInput('origin')} />
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="destination">Destination</Label>
-                    <Input id="destination" name="destination" placeholder="Ending point address" required value={destination} onChange={(e) => setDestination(e.target.value)} />
+                    <WaypointInput id="destination" value={destination} onChange={(e) => setDestination(e.target.value)} placeholder="Ending point address" onFocus={() => setActiveWaypointInput('destination')} />
                 </div>
             </div>
 
@@ -157,11 +186,12 @@ export default function OptimizeRoutePage() {
                 <Label>Stops</Label>
                 {stops.map((stop, index) => (
                     <div key={index} className="flex items-center gap-2">
-                        <Input 
-                            name={`stop-${index}`} 
-                            placeholder={`Stop ${index + 1} address`} 
+                        <WaypointInput
+                            id={`stop-${index}`}
                             value={stop}
                             onChange={(e) => handleStopChange(index, e.target.value)}
+                            placeholder={`Stop ${index + 1} address`}
+                            onFocus={() => setActiveWaypointInput(`stop-${index}`)}
                         />
                         <Button type="button" variant="ghost" size="icon" onClick={() => handleRemoveStop(index)} className="shrink-0">
                             <Trash2 className="h-4 w-4 text-destructive" />
@@ -174,7 +204,7 @@ export default function OptimizeRoutePage() {
             </div>
 
             <div className="h-96 w-full rounded-md overflow-hidden border">
-                <WaypointMap waypoints={allWaypoints} />
+                <WaypointMap waypoints={allWaypoints} onMapClick={handleMapClick} activeInput={activeWaypointInput} />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

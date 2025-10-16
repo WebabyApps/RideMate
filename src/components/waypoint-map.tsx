@@ -11,9 +11,11 @@ const render = (status: Status) => {
 
 interface WaypointMapProps {
   waypoints: string[];
+  onMapClick: (address: string) => void;
+  activeInput: string | null;
 }
 
-const MapComponent: React.FC<WaypointMapProps> = ({ waypoints }) => {
+const MapComponent: React.FC<WaypointMapProps> = ({ waypoints, onMapClick, activeInput }) => {
   const ref = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<google.maps.Map>();
   const directionsRendererRef = useRef<google.maps.DirectionsRenderer | null>(null);
@@ -30,6 +32,29 @@ const MapComponent: React.FC<WaypointMapProps> = ({ waypoints }) => {
       setMap(newMap);
     }
   }, [ref, map]);
+  
+  // Add map click listener
+  useEffect(() => {
+    if (map) {
+      const clickListener = map.addListener('click', (e: google.maps.MapMouseEvent) => {
+        if (e.latLng && activeInput) {
+          const geocoder = new google.maps.Geocoder();
+          geocoder.geocode({ location: e.latLng }, (results, status) => {
+            if (status === 'OK' && results && results[0]) {
+              onMapClick(results[0].formatted_address);
+            } else {
+              console.error(`Geocode was not successful for the following reason: ${status}`);
+            }
+          });
+        }
+      });
+
+      return () => {
+        google.maps.event.removeListener(clickListener);
+      };
+    }
+  }, [map, onMapClick, activeInput]);
+
 
   // Update route when waypoints change
   useEffect(() => {
@@ -77,11 +102,11 @@ const MapComponent: React.FC<WaypointMapProps> = ({ waypoints }) => {
     }
   }, [map, waypoints]);
 
-  return <div ref={ref} style={{ width: '100%', height: '100%' }} />;
+  return <div ref={ref} style={{ width: '100%', height: '100%' }} data-active-input={!!activeInput} className="cursor-crosshair data-[active-input=false]:cursor-default" />;
 }
 
 
-export const WaypointMap: React.FC<WaypointMapProps> = ({ waypoints }) => {
+export const WaypointMap: React.FC<WaypointMapProps> = ({ waypoints, onMapClick, activeInput }) => {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
   if (!apiKey) {
@@ -94,7 +119,7 @@ export const WaypointMap: React.FC<WaypointMapProps> = ({ waypoints }) => {
   
   return (
     <Wrapper apiKey={apiKey} render={render}>
-      <MapComponent waypoints={waypoints} />
+      <MapComponent waypoints={waypoints} onMapClick={onMapClick} activeInput={activeInput} />
     </Wrapper>
   )
 }
