@@ -8,7 +8,7 @@
  * - OptimizeCarpoolRouteOutput - The return type for the optimizeCarpoolRoute function.
  */
 
-import {ai} from '@/ai/genkit';
+import {ai} from '@/ai/genkit-server';
 import {z} from 'genkit';
 
 const OptimizeCarpoolRouteInputSchema = z.object({
@@ -35,21 +35,19 @@ const prompt = ai.definePrompt({
   name: 'optimizeCarpoolRoutePrompt',
   input: {schema: OptimizeCarpoolRouteInputSchema},
   output: {schema: OptimizeCarpoolRouteOutputSchema},
-  prompt: `You are a world-class route optimization expert specializing in creating efficient and cost-effective carpool routes.
+  prompt: `You are a world-class route optimization expert specializing in creating efficient and cost-effective carpool routes. Your primary goal is to determine the optimal order of visiting waypoints and suggest the best departure time to meet all constraints.
 
 You will be provided with the following information:
-- A general description of the carpool's purpose.
-- Real-time traffic conditions.
-- An ordered list of geographic waypoints (as "latitude,longitude" strings) representing the origin, pickups, and final destination.
-- The preferred arrival times for participants.
+- A general description of the carpool's purpose (e.g., "Work commute").
+- Real-time traffic conditions (e.g., "light", "moderate", "heavy congestion").
+- An ordered list of geographic waypoints (as "latitude,longitude" strings). This list represents the origin (index 0), one or more passenger pickups, and the final destination (last index). The initial order is not optimized.
+- The preferred or required arrival times for participants associated with specific waypoints.
 
-Your task is to analyze this data and generate an optimized carpool plan. You must determine the best sequence of travel between the waypoints to minimize travel time and cost while respecting arrival preferences. The input waypoints are just a list of required stops; you must determine the optimal order to visit them.
-
-Your response MUST include:
-1.  **Optimized Route**: A clear, waypoint-by-waypoint description of the most efficient route. Refer to the waypoints by their original index (e.g., "Start at Waypoint 1...").
-2.  **Estimated Travel Time**: The total estimated duration of the trip from start to finish.
-3.  **Suggested Departure Time**: The single best time to depart from the origin to accommodate everyone's arrival preferences, factoring in traffic and travel time.
-4.  **Cost Estimate**: An estimated cost for the trip, considering fuel and potential tolls.
+Your task is to analyze this data and generate a comprehensive, optimized carpool plan. You must:
+1.  Determine the most efficient sequence of travel between all waypoints to minimize travel time and cost. The final destination must be the last stop.
+2.  Calculate the total travel time based on the optimized route and traffic conditions.
+3.  Suggest a single, precise departure time from the origin (Waypoint 1) that ensures all participants arrive at their respective destinations on time.
+4.  Provide a reasonable cost estimate for the trip, considering factors like distance and potential tolls.
 
 Here is the data for the current request:
 - Route Goal: {{{currentRoute}}}
@@ -57,7 +55,7 @@ Here is the data for the current request:
 - Waypoints: {{#each waypoints}}"{{this}}"{{#unless @last}}, {{/unless}}{{/each}}
 - Arrival Time Preferences: {{{arrivalTimePreferences}}}
 
-Please provide the optimized plan in the required structured format.
+Please provide the optimized plan in the required structured format. Your optimized route description should be clear and easy to follow, referring to waypoints by their original index for clarity (e.g., "Start at Waypoint 1 (Origin), pick up at Waypoint 3, then pick up at Waypoint 2, and finally arrive at Waypoint 4 (Destination).").
 `,
 });
 

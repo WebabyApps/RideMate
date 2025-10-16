@@ -1,13 +1,12 @@
 import {genkit, type Genkit} from 'genkit';
 import {googleAI} from '@genkit-ai/google-genai';
-import {nextPlugin} from '@genkit-ai/next';
 
+// This instance does NOT include the Next.js plugin and is safe for server-side use.
 export const ai: Genkit = genkit({
   plugins: [
     googleAI({
       apiVersion: 'v1beta',
     }),
-    nextPlugin(),
   ],
   model: 'googleai/gemini-2.5-flash',
   enableTracing: true,
