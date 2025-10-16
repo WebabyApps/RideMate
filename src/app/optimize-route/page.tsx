@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition, useMemo } from 'react';
+import { useState, useTransition, useMemo, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -23,6 +23,22 @@ const initialState: FormState = {
   status: 'idle',
   message: '',
 };
+
+const WaypointInput = ({ id, value, onChange, placeholder, onFocus, activeInput }: { id: string; value: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; placeholder: string; onFocus: () => void; activeInput: string | null; }) => {
+  return (
+    <Input
+      id={id}
+      name={id}
+      placeholder={placeholder}
+      required={id === 'origin' || id === 'destination'}
+      value={value}
+      onChange={onChange}
+      onFocus={onFocus}
+      className={cn(activeInput === id && 'ring-2 ring-primary ring-offset-2')}
+    />
+  );
+};
+
 
 function SubmitButton() {
   const [isPending] = useTransition();
@@ -65,7 +81,7 @@ export default function OptimizeRoutePage() {
     setStops(newStops);
   };
 
-  const handleMapClick = (address: string) => {
+  const handleMapClick = useCallback((address: string) => {
     if (!activeWaypointInput) return;
 
     if (activeWaypointInput === 'origin') {
@@ -78,7 +94,7 @@ export default function OptimizeRoutePage() {
     }
     // Deactivate after setting
     setActiveWaypointInput(null);
-  };
+  }, [activeWaypointInput]);
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -143,21 +159,6 @@ export default function OptimizeRoutePage() {
     });
   };
 
-  const WaypointInput = ({ id, value, onChange, placeholder, onFocus }: { id: string; value: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; placeholder: string; onFocus: () => void; }) => {
-    return (
-      <Input
-        id={id}
-        name={id}
-        placeholder={placeholder}
-        required={id === 'origin' || id === 'destination'}
-        value={value}
-        onChange={onChange}
-        onFocus={onFocus}
-        className={cn(activeWaypointInput === id && 'ring-2 ring-primary ring-offset-2')}
-      />
-    );
-  };
-
   return (
     <div className="container mx-auto max-w-4xl px-4 md:px-6 py-8">
       <Card className="shadow-lg">
@@ -174,11 +175,11 @@ export default function OptimizeRoutePage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label htmlFor="origin">Origin</Label>
-                    <WaypointInput id="origin" value={origin} onChange={(e) => setOrigin(e.target.value)} placeholder="Starting point address" onFocus={() => setActiveWaypointInput('origin')} />
+                    <WaypointInput id="origin" value={origin} onChange={(e) => setOrigin(e.target.value)} placeholder="Starting point address" onFocus={() => setActiveWaypointInput('origin')} activeInput={activeWaypointInput} />
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="destination">Destination</Label>
-                    <WaypointInput id="destination" value={destination} onChange={(e) => setDestination(e.target.value)} placeholder="Ending point address" onFocus={() => setActiveWaypointInput('destination')} />
+                    <WaypointInput id="destination" value={destination} onChange={(e) => setDestination(e.target.value)} placeholder="Ending point address" onFocus={() => setActiveWaypointInput('destination')} activeInput={activeWaypointInput} />
                 </div>
             </div>
 
@@ -192,6 +193,7 @@ export default function OptimizeRoutePage() {
                             onChange={(e) => handleStopChange(index, e.target.value)}
                             placeholder={`Stop ${index + 1} address`}
                             onFocus={() => setActiveWaypointInput(`stop-${index}`)}
+                            activeInput={activeWaypointInput}
                         />
                         <Button type="button" variant="ghost" size="icon" onClick={() => handleRemoveStop(index)} className="shrink-0">
                             <Trash2 className="h-4 w-4 text-destructive" />
