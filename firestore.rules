@@ -9,7 +9,7 @@
  * - /users/{userId}: Stores individual user profiles.
  * - /rides/{rideId}: Stores ride information.
  * - /rides/{rideId}/ratings/{ratingId}: Stores ratings for rides.
- *
+ * 
  * @key_security_decisions
  * - Users can only read and write their own profiles.
  * - Rides are publicly readable but only the offerer can modify them.
