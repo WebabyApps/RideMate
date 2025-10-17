@@ -42,6 +42,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
+import type { Ride } from "@/lib/types";
 
 const profileSchema = z.object({
   avatarUrl: z.string().url("Please enter a valid URL.").min(1, "URL is required."),
@@ -80,7 +81,7 @@ export default function ProfilePage() {
     return query(collection(firestore, 'rides'), where('offererId', '==', user.uid));
   }, [firestore, user?.uid]);
 
-  const { data: userRides, isLoading: areRidesLoading } = useCollection(userRidesQuery);
+  const { data: userRides, isLoading: areRidesLoading } = useCollection<Ride>(userRidesQuery);
 
   useEffect(() => {
     if (userProfile) {

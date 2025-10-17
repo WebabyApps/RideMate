@@ -22,6 +22,7 @@ export type Ride = {
   petsAllowed: boolean;
   largeBagsAllowed: boolean;
   visibility: 'public' | 'private';
+  createdAt: Timestamp;
 };
 
 // Add this to your package.json dependencies
