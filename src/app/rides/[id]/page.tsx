@@ -141,7 +141,7 @@ export default function RideDetailPage() {
     );
   }
   
-  if (!isLoading && !ride) {
+  if (!ride) {
     return (
         <div className="container mx-auto max-w-2xl px-4 md:px-6 py-12 text-center">
             <Card className="p-8">
