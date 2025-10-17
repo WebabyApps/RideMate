@@ -33,7 +33,8 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
         ...rideData,
         id: rideDoc.id,
         departureTime: rideData?.departureTime.toDate().toISOString(),
-        createdAt: rideData?.createdAt?.toDate().toISOString(),
+        // Safely handle optional createdAt timestamp
+        createdAt: rideData?.createdAt ? rideData.createdAt.toDate().toISOString() : undefined,
     };
 
     return NextResponse.json({ ride: serializableData });
