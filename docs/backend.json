@@ -95,6 +95,11 @@
         "largeBagsAllowed": {
             "type": "boolean",
             "description": "Indicates if large bags/luggage are allowed."
+        },
+        "visibility": {
+            "type": "string",
+            "description": "Controls the visibility of the ride.",
+            "enum": ["public", "private"]
         }
       },
       "required": [
@@ -107,7 +112,8 @@
         "cost",
         "createdAt",
         "petsAllowed",
-        "largeBagsAllowed"
+        "largeBagsAllowed",
+        "visibility"
       ]
     },
     "Rating": {

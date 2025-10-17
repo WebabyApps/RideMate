@@ -109,6 +109,7 @@ export default function OfferRidePage() {
       largeBagsAllowed: data.largeBagsAllowed,
       createdAt: serverTimestamp(),
       riderIds: [],
+      visibility: 'public', // Always make rides public for now
     });
 
     toast({

@@ -26,7 +26,7 @@ export default function RidesPage() {
   const ridesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
 
-    let q: Query = collection(firestore, 'rides');
+    let q: Query = query(collection(firestore, 'rides'), where('visibility', '==', 'public'));
 
     if (origin) {
       // Using a range query for partial matching on origin

@@ -21,6 +21,7 @@ export type Ride = {
   riderIds: string[];
   petsAllowed: boolean;
   largeBagsAllowed: boolean;
+  visibility: 'public' | 'private';
 };
 
 // Add this to your package.json dependencies
