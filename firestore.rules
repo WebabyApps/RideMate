@@ -1,52 +1,121 @@
-
+/**
+ * @file Firebase Security Rules for RideMate
+ *
+ * @core_philosophy This ruleset prioritizes user data protection and access control.
+ *  Users can only read and write their own data, while rides are publicly accessible for reading but creation, update, and deletion are restricted to authenticated users.
+ *
+ * @data_structure
+ * - `/users/{userId}`: Stores individual user profiles.
+ * - `/rides/{rideId}`: Stores ride information.
+ * - `/rides/{rideId}/ratings/{ratingId}`: Stores ratings for specific rides.
+ *
+ * @key_security_decisions
+ * - Users can only read and write their own user document.
+ * - Rides are publicly readable but only authenticated users can create/update/delete them.
+ * - Ratings can only be created, updated, or deleted by the rater.
+ *
+ * @denormalization_for_authorization N/A
+ */
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper function to check if a user is authenticated.
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    // Helper function to check if the requesting user is the owner of a document.
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-
-    // Rules for the 'users' collection
+    /**
+     * @description Rule for managing user profiles.
+     * @path /users/{userId}
+     * @allow (create) Authenticated user can create their own profile.
+     * @allow (get) Authenticated user can get their own profile.
+     * @allow (update) Authenticated user can update their own profile.
+     * @allow (delete) Authenticated user can delete their own profile.
+     * @deny (create) User attempts to create a profile with an ID that doesn't match their auth.
+     * @deny (get) User attempts to read another user's profile.
+     * @deny (update) User attempts to modify another user's profile.
+     * @deny (delete) User attempts to delete another user's profile.
+     * @principle Enforces user ownership: only the authenticated user can manage their own profile.
+     */
     match /users/{userId} {
-      // Anyone can view a user's public profile.
-      allow read: if true;
+      function isSignedIn() {
+        return request.auth != null;
+      }
 
-      // Only the authenticated user can create their own profile document.
-      allow create: if isOwner(userId);
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
 
-      // Only the owner of the profile can update it.
-      allow update: if isOwner(userId);
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource.data != null;
+      }
 
-      // Deleting user profiles is not allowed.
-      allow delete: if false;
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if isSignedIn() && isOwner(userId);
+      allow update: if isSignedIn() && isExistingOwner(userId);
+      allow delete: if isSignedIn() && isExistingOwner(userId);
     }
 
-    // Rules for the 'rides' collection
+    /**
+     * @description Rule for managing rides.
+     * @path /rides/{rideId}
+     * @allow (get, list) Everyone can read the rides.
+     * @allow (create) Authenticated users can create rides, and the offererId matches their UID.
+     * @allow (update) Authenticated users can update rides they own, validating the offererId.
+     * @allow (delete) Authenticated users can delete rides they own, validating the offererId.
+     *
+     * @deny (create) Unauthorized user attempts to create a ride with mismatched offererId.
+     * @deny (update) Unauthorized user attempts to update a ride they don't own.
+     * @deny (delete) Unauthorized user attempts to delete a ride they don't own.
+     * @principle Public read, owner-only writes.
+     */
     match /rides/{rideId} {
-      // Anyone can read ride information.
-      allow read: if true;
+      function isSignedIn() {
+        return request.auth != null;
+      }
 
-      // An authenticated user can create a ride if they are the offerer.
-      allow create: if isSignedIn() && isOwner(request.resource.data.offererId);
+      function isOwner(offererId) {
+        return request.auth.uid == offererId;
+      }
 
-      // An authenticated user can update a ride if:
-      // 1. They are the driver (offerer) making changes.
-      // 2. They are a passenger booking a seat (updating riderIds and availableSeats).
-      allow update: if isSignedIn() && 
-                    (isOwner(resource.data.offererId) || 
-                     (request.resource.data.keys().hasAll(['riderIds', 'availableSeats']) && 
-                      request.resource.data.riderIds == resource.data.riderIds.concat([request.auth.uid])));
+      function isExistingOwner(offererId) {
+        return isOwner(offererId) && resource.data != null && resource.data.offererId == request.auth.uid;
+      }
 
-      // Only the driver (offerer) can delete their own ride.
-      allow delete: if isSignedIn() && isOwner(resource.data.offererId);
+      allow get: if true;
+      allow list: if true;
+      allow create: if isSignedIn() && request.resource.data.offererId == request.auth.uid;
+      allow update: if isSignedIn() && isExistingOwner(resource.data.offererId);
+      allow delete: if isSignedIn() && isExistingOwner(resource.data.offererId);
+    }
+
+    /**
+     * @description Rule for managing ride ratings.
+     * @path /rides/{rideId}/ratings/{ratingId}
+     * @allow (create) Authenticated user can create a rating if the raterId matches their UID.
+     * @allow (get) Everyone can get ratings.
+     * @allow (update) Authenticated user can update their own rating.
+     * @allow (delete) Authenticated user can delete their own rating.
+     * @deny (create) User attempts to create a rating with an raterId that doesn't match their auth.
+     * @deny (update) User attempts to modify another user's rating.
+     * @deny (delete) User attempts to delete another user's rating.
+     * @principle Enforces user ownership for ratings: only the authenticated user (rater) can manage their own ratings.
+     */
+    match /rides/{rideId}/ratings/{ratingId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isOwner(raterId) {
+        return request.auth.uid == raterId;
+      }
+
+      function isExistingOwner(raterId) {
+        return isOwner(raterId) && resource.data != null && resource.data.raterId == request.auth.uid;
+      }
+
+      allow get: if true;
+      allow list: if true;
+      allow create: if isSignedIn() && request.resource.data.raterId == request.auth.uid;
+      allow update: if isSignedIn() && isExistingOwner(resource.data.raterId);
+      allow delete: if isSignedIn() && isExistingOwner(resource.data.raterId);
     }
   }
 }
