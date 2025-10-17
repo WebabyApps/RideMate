@@ -1,20 +1,11 @@
 import 'server-only';
-import { Genkit } from 'genkit';
+import {genkit} from 'genkit';
+import {googleAI} from '@genkit-ai/google-genai';
 
-let _ai: Genkit | undefined;
-
-export async function getAI(): Promise<Genkit> {
-  if (_ai) return _ai;
-
-  // Dynamically import to avoid RSC/webpack shape issues.
-  const { ai } = await import('genkit');
-  const { googleAI } = await import('@genkit-ai/google-genai');
-
-  _ai = ai({
-    plugins: [googleAI()],
-    logLevel: 'debug',
-    enableTracing: true,
-  });
-
-  return _ai;
-}
+// By default, a simple AI instance is initialized.
+// No need for complex getter functions.
+export const ai = genkit({
+  plugins: [googleAI()],
+  logLevel: 'debug',
+  enableTracing: true,
+});
