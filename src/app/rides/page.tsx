@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import type { Ride } from "@/lib/types";
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
 import { collection, query, where, orderBy, Query } from "firebase/firestore";
@@ -29,15 +29,12 @@ export default function RidesPage() {
     let q: Query = query(collection(firestore, 'rides'), where('visibility', '==', 'public'));
 
     if (origin) {
-      // Using a range query for partial matching on origin
       q = query(q, where('origin', '>=', origin), where('origin', '<=', origin + '\uf8ff'));
     }
     if (destination) {
-       // Using a range query for partial matching on destination
       q = query(q, where('destination', '>=', destination), where('destination', '<=', destination + '\uf8ff'));
     }
-
-    // Apply sorting
+    
     switch (sort) {
       case 'price-asc':
         q = query(q, orderBy('cost', 'asc'));
@@ -55,39 +52,21 @@ export default function RidesPage() {
   }, [firestore, origin, destination, sort]);
 
   const { data: rides, isLoading } = useCollection<Ride>(ridesQuery);
-  
-  const [filteredRides, setFilteredRides] = useState<Ride[]>([]);
-
-  useEffect(() => {
-    if (rides) {
-        let sortedRides = [...rides];
-         switch (sort) {
-            case 'price-asc':
-                sortedRides.sort((a, b) => a.cost - b.cost);
-                break;
-            case 'price-desc':
-                sortedRides.sort((a, b) => b.cost - a.cost);
-                break;
-            case 'departure-asc':
-            default:
-                sortedRides.sort((a, b) => a.departureTime.toMillis() - b.departureTime.toMillis());
-                break;
-        }
-        setFilteredRides(sortedRides);
-    }
-  }, [rides, sort]);
-
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    // The useMemoFirebase hook will automatically re-run the query
-    // when origin or destination state changes, so we just need to update state.
     const form = e.currentTarget as HTMLFormElement;
     const fromValue = (form.elements.namedItem('from') as HTMLInputElement).value;
     const toValue = (form.elements.namedItem('to') as HTMLInputElement).value;
     setOrigin(fromValue);
     setDestination(toValue);
   }
+
+  const filteredRides = useMemo(() => {
+    if (!rides) return [];
+    let processedRides = rides.filter(ride => ride.departureTime && ride.departureTime.toDate() > new Date());
+    return processedRides;
+  }, [rides]);
 
   return (
     <div className="container mx-auto px-4 md:px-6 py-8">
