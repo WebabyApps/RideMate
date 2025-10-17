@@ -7,7 +7,9 @@
 
 import {ai} from '@/ai/getAI';
 import {
+  OptimizeCarpoolRouteInput,
   OptimizeCarpoolRouteInputSchema,
+  OptimizeCarpoolRouteOutput,
   OptimizeCarpoolRouteOutputSchema,
 } from '@/lib/types';
 
@@ -39,9 +41,9 @@ const optimizeCarpoolRoutePrompt = ai.definePrompt({
     `,
 });
 
-export const optimizeCarpoolRoute = ai.defineFlow(
+const optimizeCarpoolRouteFlow = ai.defineFlow(
   {
-    name: 'optimizeCarpoolRoute',
+    name: 'optimizeCarpoolRouteFlow',
     inputSchema: OptimizeCarpoolRouteInputSchema,
     outputSchema: OptimizeCarpoolRouteOutputSchema,
   },
@@ -53,3 +55,7 @@ export const optimizeCarpoolRoute = ai.defineFlow(
     return output;
   }
 );
+
+export async function optimizeCarpoolRoute(input: OptimizeCarpoolRouteInput): Promise<OptimizeCarpoolRouteOutput> {
+    return optimizeCarpoolRouteFlow(input);
+}
