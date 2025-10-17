@@ -12,74 +12,82 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useState, useMemo, useEffect, useTransition } from "react";
+import { useState, useMemo, useEffect } from "react";
 import type { Ride } from "@/lib/types";
-import { Timestamp } from "firebase/firestore";
-
-// This is the shape of the data we'll get from our API route
-type ApiRide = Omit<Ride, 'departureTime'> & {
-  departureTime: string | null;
-};
+import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
+import { collection, query, where, orderBy, Query } from "firebase/firestore";
 
 export default function RidesPage() {
+  const firestore = useFirestore();
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
   const [sort, setSort] = useState('departure-asc');
 
-  const [rides, setRides] = useState<Ride[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isPending, startTransition] = useTransition();
+  const ridesQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
 
-  const fetchRides = async () => {
-    setIsLoading(true);
-    try {
-      const response = await fetch('/api/rides/search', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ origin, destination, sort }),
-      });
-      if (!response.ok) {
-        throw new Error('Failed to fetch rides');
-      }
-      const data: { rides: ApiRide[] } = await response.json();
-      
-      // Convert ISO strings back to Timestamp objects and filter out invalid rides
-      const formattedRides = data.rides
-        .filter(ride => ride.departureTime) // Ensure departureTime is not null
-        .map(ride => ({
-            ...ride,
-            departureTime: Timestamp.fromDate(new Date(ride.departureTime!)),
-        }));
+    let q: Query = collection(firestore, 'rides');
 
-      setRides(formattedRides);
-
-    } catch (error) {
-      console.error(error);
-      setRides([]); // Clear rides on error
-    } finally {
-      setIsLoading(false);
+    if (origin) {
+      // Using a range query for partial matching on origin
+      q = query(q, where('origin', '>=', origin), where('origin', '<=', origin + '\uf8ff'));
     }
-  };
+    if (destination) {
+       // Using a range query for partial matching on destination
+      q = query(q, where('destination', '>=', destination), where('destination', '<=', destination + '\uf8ff'));
+    }
 
-  // Fetch rides when search criteria change
+    // Apply sorting
+    switch (sort) {
+      case 'price-asc':
+        q = query(q, orderBy('cost', 'asc'));
+        break;
+      case 'price-desc':
+        q = query(q, orderBy('cost', 'desc'));
+        break;
+      case 'departure-asc':
+      default:
+        q = query(q, orderBy('departureTime', 'asc'));
+        break;
+    }
+
+    return q;
+  }, [firestore, origin, destination, sort]);
+
+  const { data: rides, isLoading } = useCollection<Ride>(ridesQuery);
+  
+  const [filteredRides, setFilteredRides] = useState<Ride[]>([]);
+
+  useEffect(() => {
+    if (rides) {
+        let sortedRides = [...rides];
+         switch (sort) {
+            case 'price-asc':
+                sortedRides.sort((a, b) => a.cost - b.cost);
+                break;
+            case 'price-desc':
+                sortedRides.sort((a, b) => b.cost - a.cost);
+                break;
+            case 'departure-asc':
+            default:
+                sortedRides.sort((a, b) => a.departureTime.toMillis() - b.departureTime.toMillis());
+                break;
+        }
+        setFilteredRides(sortedRides);
+    }
+  }, [rides, sort]);
+
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    startTransition(() => {
-      fetchRides();
-    });
+    // The useMemoFirebase hook will automatically re-run the query
+    // when origin or destination state changes, so we just need to update state.
+    const form = e.currentTarget as HTMLFormElement;
+    const fromValue = (form.elements.namedItem('from') as HTMLInputElement).value;
+    const toValue = (form.elements.namedItem('to') as HTMLInputElement).value;
+    setOrigin(fromValue);
+    setDestination(toValue);
   }
-  
-  // Initial fetch
-  useEffect(() => {
-     startTransition(() => {
-      fetchRides();
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sort]);
-
-  const isSearching = isLoading || isPending;
 
   return (
     <div className="container mx-auto px-4 md:px-6 py-8">
@@ -95,14 +103,14 @@ export default function RidesPage() {
               <label htmlFor="from" className="text-sm font-medium">From</label>
               <div className="relative">
                 <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                <Input name="from" id="from" placeholder="e.g., San Francisco" className="pl-10" defaultValue={origin} onChange={(e) => setOrigin(e.target.value)} />
+                <Input name="from" id="from" placeholder="e.g., San Francisco" className="pl-10" />
               </div>
             </div>
             <div className="space-y-2">
               <label htmlFor="to" className="text-sm font-medium">To</label>
                <div className="relative">
                 <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                <Input name="to" id="to" placeholder="e.g., Los Angeles" className="pl-10" defaultValue={destination} onChange={(e) => setDestination(e.target.value)} />
+                <Input name="to" id="to" placeholder="e.g., Los Angeles" className="pl-10" />
               </div>
             </div>
              <div className="space-y-2">
@@ -118,23 +126,23 @@ export default function RidesPage() {
                     </SelectContent>
                 </Select>
             </div>
-            <Button type="submit" className="w-full lg:w-auto font-bold" disabled={isSearching}>
+            <Button type="submit" className="w-full lg:w-auto font-bold" disabled={isLoading}>
               <Search className="mr-2 h-4 w-4" />
-              {isSearching ? 'Searching...' : 'Search'}
+              {isLoading ? 'Searching...' : 'Search'}
             </Button>
           </form>
         </CardContent>
       </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {isSearching ? (
+        {isLoading ? (
           <>
             <Skeleton className="h-[28rem] w-full" />
             <Skeleton className="h-[28rem] w-full" />
             <Skeleton className="h-[28rem] w-full" />
           </>
-        ) : rides && rides.length > 0 ? (
-          rides.map(ride => (
+        ) : filteredRides.length > 0 ? (
+          filteredRides.map(ride => (
             <RideCard key={ride.id} ride={ride} />
           ))
         ) : (

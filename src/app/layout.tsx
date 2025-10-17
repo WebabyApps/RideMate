@@ -6,6 +6,7 @@ import { Footer } from '@/components/footer';
 import { Toaster } from "@/components/ui/toaster"
 import { FirebaseProvider } from '@/firebase/provider';
 import { ThemeProvider } from '@/components/theme-provider';
+import { AuthHandler } from '@/firebase/auth-handler';
 
 export const metadata: Metadata = {
   title: 'RideMate',
@@ -36,6 +37,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <FirebaseProvider>
+            <AuthHandler />
             <div className="relative flex min-h-screen flex-col">
               <Header />
               <main className="flex-1">{children}</main>
