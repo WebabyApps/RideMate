@@ -1,3 +1,4 @@
+
 'use client';
 import { RideCard } from "@/components/ride-card";
 import { Input } from "@/components/ui/input";
@@ -16,6 +17,39 @@ import { useState, useMemo } from "react";
 import type { Ride } from "@/lib/types";
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
 import { collection, query, where, orderBy, Query } from "firebase/firestore";
+
+function RideList({ rides, isLoading }: { rides: Ride[] | null, isLoading: boolean }) {
+  if (isLoading) {
+    return (
+      <>
+        <Skeleton className="h-[28rem] w-full" />
+        <Skeleton className="h-[28rem] w-full" />
+        <Skeleton className="h-[28rem] w-full" />
+      </>
+    );
+  }
+
+  const filteredRides = rides
+    ? rides.filter(ride => ride.departureTime && ride.departureTime.toDate() > new Date())
+    : [];
+
+  if (filteredRides.length > 0) {
+    return (
+      <>
+        {filteredRides.map(ride => (
+          <RideCard key={ride.id} ride={ride} />
+        ))}
+      </>
+    );
+  }
+
+  return (
+    <div className="col-span-full text-center py-10 border-2 border-dashed rounded-lg">
+      <p className="text-muted-foreground">No rides available for the selected criteria. Check back soon!</p>
+    </div>
+  );
+}
+
 
 export default function RidesPage() {
   const firestore = useFirestore();
@@ -61,14 +95,6 @@ export default function RidesPage() {
     setOrigin(fromValue);
     setDestination(toValue);
   }
-
-  const filteredRides = useMemo(() => {
-    // Safely handle the case where rides might be null and ensure departureTime exists before filtering.
-    if (!rides) {
-      return [];
-    }
-    return rides.filter(ride => ride.departureTime && ride.departureTime.toDate() > new Date());
-  }, [rides]);
 
   return (
     <div className="container mx-auto px-4 md:px-6 py-8">
@@ -116,21 +142,7 @@ export default function RidesPage() {
       </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {isLoading ? (
-          <>
-            <Skeleton className="h-[28rem] w-full" />
-            <Skeleton className="h-[28rem] w-full" />
-            <Skeleton className="h-[28rem] w-full" />
-          </>
-        ) : filteredRides.length > 0 ? (
-          filteredRides.map(ride => (
-            <RideCard key={ride.id} ride={ride} />
-          ))
-        ) : (
-          <div className="col-span-full text-center py-10 border-2 border-dashed rounded-lg">
-            <p className="text-muted-foreground">No rides available for the selected criteria. Check back soon!</p>
-          </div>
-        )}
+        <RideList rides={rides} isLoading={isLoading} />
       </div>
     </div>
   );
