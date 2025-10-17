@@ -45,11 +45,13 @@ export default function RidesPage() {
       }
       const data: { rides: ApiRide[] } = await response.json();
       
-      // Convert ISO strings back to Timestamp-like objects for the RideCard
-      const formattedRides = data.rides.map(ride => ({
-        ...ride,
-        departureTime: ride.departureTime ? Timestamp.fromDate(new Date(ride.departureTime)) : Timestamp.now(),
-      }));
+      // Convert ISO strings back to Timestamp objects and filter out invalid rides
+      const formattedRides = data.rides
+        .filter(ride => ride.departureTime) // Ensure departureTime is not null
+        .map(ride => ({
+            ...ride,
+            departureTime: Timestamp.fromDate(new Date(ride.departureTime!)),
+        }));
 
       setRides(formattedRides);
 
@@ -61,20 +63,21 @@ export default function RidesPage() {
     }
   };
 
-  // Fetch rides on initial load and when search criteria change
-  useEffect(() => {
+  // Fetch rides when search criteria change
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
     startTransition(() => {
       fetchRides();
     });
-  }, [origin, destination, sort]);
-  
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    const formData = new FormData(e.target as HTMLFormElement);
-    setOrigin(formData.get('from') as string);
-    setDestination(formData.get('to') as string);
   }
+  
+  // Initial fetch
+  useEffect(() => {
+     startTransition(() => {
+      fetchRides();
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sort]);
 
   const isSearching = isLoading || isPending;
 
@@ -92,14 +95,14 @@ export default function RidesPage() {
               <label htmlFor="from" className="text-sm font-medium">From</label>
               <div className="relative">
                 <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                <Input name="from" id="from" placeholder="e.g., San Francisco" className="pl-10" />
+                <Input name="from" id="from" placeholder="e.g., San Francisco" className="pl-10" defaultValue={origin} onChange={(e) => setOrigin(e.target.value)} />
               </div>
             </div>
             <div className="space-y-2">
               <label htmlFor="to" className="text-sm font-medium">To</label>
                <div className="relative">
                 <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                <Input name="to" id="to" placeholder="e.g., Los Angeles" className="pl-10" />
+                <Input name="to" id="to" placeholder="e.g., Los Angeles" className="pl-10" defaultValue={destination} onChange={(e) => setDestination(e.target.value)} />
               </div>
             </div>
              <div className="space-y-2">
