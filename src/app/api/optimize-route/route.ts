@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { optimizeCarpoolRouteFlow, OptimizeCarpoolRouteInputSchema } from '@/ai/flows/optimize-carpool-route';
+import { runOptimizeCarpoolRouteFlow, OptimizeCarpoolRouteInputSchema } from '@/ai/flows/optimize-carpool-route';
+import 'server-only';
 
 export const runtime = 'nodejs';
 
@@ -23,7 +24,21 @@ export async function POST(req: NextRequest) {
       );
     }
     
-    const result = await optimizeCarpoolRouteFlow(validatedInput.data);
+    // Lazy-load Genkit and plugins only within the API route
+    const [{ genkit }, { googleAI }] = await Promise.all([
+        import('genkit'),
+        import('@genkit-ai/google-genai'),
+    ]);
+    
+    // Configure AI instance within the server-side context
+    const ai = genkit({
+        plugins: [googleAI()],
+        logLevel: 'debug',
+        enableTracing: true,
+    });
+
+    // Run the flow with the initialized AI instance
+    const result = await runOptimizeCarpoolRouteFlow(ai, validatedInput.data);
 
     return NextResponse.json({
         status: 'success',
