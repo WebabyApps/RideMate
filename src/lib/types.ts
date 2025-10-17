@@ -22,3 +22,7 @@ export type Ride = {
   petsAllowed: boolean;
   largeBagsAllowed: boolean;
 };
+
+// Add this to your package.json dependencies
+// "firebase-admin": "^12.2.0"
+// I will add it for you.
