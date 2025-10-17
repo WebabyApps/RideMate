@@ -23,7 +23,3 @@ export type Ride = {
   largeBagsAllowed: boolean;
   createdAt: Timestamp;
 };
-
-// Add this to your package.json dependencies
-// "firebase-admin": "^12.2.0"
-// I will add it for you.
