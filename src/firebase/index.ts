@@ -4,6 +4,7 @@ import { firebaseConfig } from '@/firebase/config';
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth, Auth } from 'firebase/auth';
 import { getFirestore, Firestore } from 'firebase/firestore'
+import { initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check';
 
 let firebaseApp: FirebaseApp;
 let auth: Auth;
@@ -14,6 +15,15 @@ let firestore: Firestore;
 if (!getApps().length) {
     // For local development, it uses the config object.
     firebaseApp = initializeApp(firebaseConfig);
+    
+    // Initialize App Check
+    if (typeof window !== 'undefined') {
+      initializeAppCheck(firebaseApp, {
+        provider: new ReCaptchaV3Provider(process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || 'YOUR_RECAPTCHA_V3_SITE_KEY'),
+        isTokenAutoRefreshEnabled: true,
+      });
+    }
+
 } else {
   firebaseApp = getApp();
 }
