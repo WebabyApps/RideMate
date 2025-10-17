@@ -16,7 +16,7 @@ import type { Ride, UserProfile } from '@/lib/types';
 import Link from 'next/link';
 import { useDoc } from "@/firebase/firestore/use-doc";
 
-function DriverInfo({ driverId }: { driverId: string }) {
+function DriverInfo({ driverId }: { driverId: string | undefined }) {
   const firestore = useFirestore();
   const driverDocRef = useMemoFirebase(() => {
     if (!firestore || !driverId) return null;
