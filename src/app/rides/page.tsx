@@ -18,13 +18,15 @@ import type { Ride } from "@/lib/types";
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
 import { collection, query, where, orderBy, Query } from "firebase/firestore";
 
+export const dynamic = 'force-dynamic';
+
 function RideList({ rides, isLoading }: { rides: Ride[] | null, isLoading: boolean }) {
   if (isLoading) {
     return (
       <>
-        <Skeleton className="h-[28rem] w-full" />
-        <Skeleton className="h-[28rem] w-full" />
-        <Skeleton className="h-[28rem] w-full" />
+        <Skeleton className="h-96 w-full" />
+        <Skeleton className="h-96 w-full" />
+        <Skeleton className="h-96 w-full" />
       </>
     );
   }
