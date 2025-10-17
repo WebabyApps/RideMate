@@ -28,14 +28,6 @@ export const OptimizeCarpoolRouteOutputSchema = z.object({
 });
 export type OptimizeCarpoolRouteOutput = z.infer<typeof OptimizeCarpoolRouteOutputSchema>;
 
-// Initialize Genkit with the Google AI plugin
-ai.configure({
-  plugins: [googleAI()],
-  logLevel: 'debug',
-  enableTracing: true,
-});
-
-
 // Define the AI prompt for route optimization
 const optimizeCarpoolRoutePrompt = ai.definePrompt({
   name: 'optimizeCarpoolRoutePrompt',
