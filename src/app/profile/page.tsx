@@ -48,6 +48,78 @@ const profileSchema = z.object({
   avatarUrl: z.string().url("Please enter a valid URL.").min(1, "URL is required."),
 });
 
+function UserRidesList({ userId }: { userId: string }) {
+    const firestore = useFirestore();
+    const { toast } = useToast();
+
+    const userRidesQuery = useMemoFirebase(() => {
+        if (!firestore) return null;
+        return query(collection(firestore, 'rides'), where('offererId', '==', userId));
+    }, [firestore, userId]);
+
+    const { data: userRides, isLoading: areRidesLoading } = useCollection<Ride>(userRidesQuery);
+
+    const handleCancelRide = (rideId: string) => {
+        if (!firestore) return;
+        const rideDocRef = doc(firestore, 'rides', rideId);
+        deleteDocumentNonBlocking(rideDocRef);
+        toast({
+        title: "Ride Cancelled",
+        description: "You have successfully cancelled the ride.",
+        });
+    };
+
+    if (areRidesLoading) {
+        return <Skeleton className="h-24 w-full" />;
+    }
+
+    if (!userRides || userRides.length === 0) {
+        return (
+            <div className="text-center py-10 border-2 border-dashed rounded-lg">
+                <p className="text-muted-foreground">You haven't offered any rides yet.</p>
+                <Button asChild variant="link" className="mt-2 text-primary">
+                    <Link href="/offer-ride">Offer a ride now</Link>
+                </Button>
+            </div>
+        );
+    }
+  
+    return (
+        <div className="space-y-4">
+        {userRides.map(ride => (
+            <Card key={ride.id} className="p-4 flex justify-between items-center">
+                <div>
+                    <p className="font-bold">{ride.origin} to {ride.destination}</p>
+                    <p className="text-sm text-muted-foreground">{ride.departureTime ? format(ride.departureTime.toDate(), 'PPpp') : ''}</p>
+                    <p className="text-sm">${ride.cost} per seat - {ride.availableSeats} seats left</p>
+                </div>
+                <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                    <Button variant="destructive" size="icon">
+                        <Trash2 className="h-4 w-4" />
+                    </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                        This action cannot be undone. This will permanently cancel your ride and notify any booked passengers.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Back</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => handleCancelRide(ride.id)}>
+                        Yes, Cancel Ride
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+            </Card>
+        ))}
+        </div>
+    );
+}
+
 export default function ProfilePage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
@@ -63,7 +135,6 @@ export default function ProfilePage() {
   });
 
   useEffect(() => {
-    // Redirect if auth is done and there's no user
     if (!isUserLoading && !user) {
       router.push('/login');
     }
@@ -75,29 +146,12 @@ export default function ProfilePage() {
   }, [firestore, user]);
 
   const { data: userProfile, isLoading: isProfileLoading } = useDoc(userDocRef);
-
-  const userRidesQuery = useMemoFirebase(() => {
-    if (!firestore || !user?.uid) return null;
-    return query(collection(firestore, 'rides'), where('offererId', '==', user.uid));
-  }, [firestore, user?.uid]);
-
-  const { data: userRides, isLoading: areRidesLoading } = useCollection<Ride>(userRidesQuery);
-
+  
   useEffect(() => {
     if (userProfile && user) {
       form.setValue('avatarUrl', userProfile.avatarUrl || '');
     }
   }, [userProfile, user, form]);
-
-  const handleCancelRide = (rideId: string) => {
-    if (!firestore) return;
-    const rideDocRef = doc(firestore, 'rides', rideId);
-    deleteDocumentNonBlocking(rideDocRef);
-    toast({
-      title: "Ride Cancelled",
-      description: "You have successfully cancelled the ride.",
-    });
-  };
 
   function onProfileSubmit(data: z.infer<typeof profileSchema>) {
     if (!userDocRef) return;
@@ -223,49 +277,7 @@ export default function ProfilePage() {
               <CardDescription>Rides you are currently offering.</CardDescription>
             </CardHeader>
             <CardContent className="pt-0">
-              {areRidesLoading ? (
-                 <Skeleton className="h-24 w-full" />
-              ) : userRides && userRides.length > 0 ? (
-                <div className="space-y-4">
-                  {userRides.map(ride => (
-                    <Card key={ride.id} className="p-4 flex justify-between items-center">
-                        <div>
-                            <p className="font-bold">{ride.origin} to {ride.destination}</p>
-                            <p className="text-sm text-muted-foreground">{ride.departureTime ? format(ride.departureTime.toDate(), 'PPpp') : ''}</p>
-                            <p className="text-sm">${ride.cost} per seat - {ride.availableSeats} seats left</p>
-                        </div>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="destructive" size="icon">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                This action cannot be undone. This will permanently cancel your ride and notify any booked passengers.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Back</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => handleCancelRide(ride.id)}>
-                                Yes, Cancel Ride
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                    </Card>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-10 border-2 border-dashed rounded-lg">
-                    <p className="text-muted-foreground">You haven't offered any rides yet.</p>
-                    <Button asChild variant="link" className="mt-2 text-primary">
-                        <Link href="/offer-ride">Offer a ride now</Link>
-                    </Button>
-                </div>
-              )}
+              <UserRidesList userId={user.uid} />
             </CardContent>
           </Card>
         </div>
