@@ -25,6 +25,7 @@ export async function POST(req: Request) {
     });
 
     if (!validatedInput.success) {
+      console.error('API Validation Error:', validatedInput.error.format());
       return NextResponse.json(
         {message: 'Invalid input.', errors: validatedInput.error.format()},
         {status: 400}
@@ -39,7 +40,11 @@ export async function POST(req: Request) {
       data: result,
     });
   } catch (error: any) {
-    console.error('API Error:', error);
+    console.error('API Route Error:', error);
+    // Also log the stack trace if available
+    if (error.stack) {
+      console.error(error.stack);
+    }
     return NextResponse.json(
       {message: error.message || 'An unexpected error occurred.'},
       {status: 500}
