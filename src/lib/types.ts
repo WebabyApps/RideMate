@@ -21,7 +21,6 @@ export type Ride = {
   riderIds: string[];
   petsAllowed: boolean;
   largeBagsAllowed: boolean;
-  visibility: 'public' | 'private';
   createdAt: Timestamp;
 };
 

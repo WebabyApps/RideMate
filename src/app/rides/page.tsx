@@ -26,7 +26,7 @@ export default function RidesPage() {
   const ridesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
 
-    let q: Query = query(collection(firestore, 'rides'), where('visibility', '==', 'public'));
+    let q: Query = query(collection(firestore, 'rides'));
 
     if (origin) {
       q = query(q, where('origin', '>=', origin), where('origin', '<=', origin + '\uf8ff'));
