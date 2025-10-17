@@ -84,10 +84,10 @@ export default function ProfilePage() {
   const { data: userRides, isLoading: areRidesLoading } = useCollection<Ride>(userRidesQuery);
 
   useEffect(() => {
-    if (userProfile) {
+    if (userProfile && user) {
       form.setValue('avatarUrl', userProfile.avatarUrl || '');
     }
-  }, [userProfile, form]);
+  }, [userProfile, user, form]);
 
   const handleCancelRide = (rideId: string) => {
     if (!firestore) return;
@@ -111,7 +111,7 @@ export default function ProfilePage() {
 
   const isLoading = isUserLoading || isProfileLoading;
 
-  if (isLoading || !userProfile) {
+  if (isLoading || !userProfile || !user) {
     return (
         <div className="container mx-auto max-w-5xl px-4 md:px-6 py-8">
             <div className="grid md:grid-cols-3 gap-8">
@@ -155,24 +155,24 @@ export default function ProfilePage() {
           <Card className="text-center sticky top-24">
             <CardHeader>
                 <Avatar className="w-32 h-32 mx-auto border-4 border-primary shadow-lg">
-                  <AvatarImage src={userProfile?.avatarUrl} alt={`${userProfile?.firstName} ${userProfile?.lastName}`} />
-                  <AvatarFallback>{userProfile?.firstName?.charAt(0)}</AvatarFallback>
+                  <AvatarImage src={userProfile.avatarUrl} alt={`${userProfile.firstName} ${userProfile.lastName}`} />
+                  <AvatarFallback>{userProfile.firstName?.charAt(0)}</AvatarFallback>
                 </Avatar>
             </CardHeader>
             <CardContent className="pt-0 space-y-4">
               <div>
-                  <CardTitle className="font-headline text-3xl">{`${userProfile?.firstName} ${userProfile?.lastName}`}</CardTitle>
-                  <StarRating rating={userProfile?.rating || 0} className="justify-center mt-2" starClassName="w-5 h-5" />
+                  <CardTitle className="font-headline text-3xl">{`${userProfile.firstName} ${userProfile.lastName}`}</CardTitle>
+                  <StarRating rating={userProfile.rating || 0} className="justify-center mt-2" starClassName="w-5 h-5" />
               </div>
               <Separator />
               <div className="text-left space-y-2 text-muted-foreground">
                   <div className="flex items-center gap-3">
                       <Calendar className="w-4 h-4" />
-                      <span>Member since {user?.metadata.creationTime ? format(new Date(user.metadata.creationTime), 'MMMM yyyy') : ''}</span>
+                      <span>Member since {user.metadata.creationTime ? format(new Date(user.metadata.creationTime), 'MMMM yyyy') : ''}</span>
                   </div>
                   <div className="flex items-center gap-3">
                       <Mail className="w-4 h-4" />
-                      <span>{userProfile?.email}</span>
+                      <span>{userProfile.email}</span>
                   </div>
               </div>
                 <Dialog open={isProfileDialogOpen} onOpenChange={setProfileDialogOpen}>
