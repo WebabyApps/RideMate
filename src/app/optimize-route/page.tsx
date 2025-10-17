@@ -10,7 +10,7 @@ import { toast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Terminal, Bot, Zap, Clock, Route, DollarSign, CalendarClock, Trash2, PlusCircle } from 'lucide-react';
 import { WaypointMap } from '@/components/waypoint-map';
-import type { OptimizeCarpoolRouteOutput } from '@/ai/flows/optimize-carpool-route';
+import type { OptimizeCarpoolRouteOutput } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 type FormState = {

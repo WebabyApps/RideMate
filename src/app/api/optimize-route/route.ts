@@ -2,10 +2,8 @@ import 'server-only';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-import {
-  optimizeCarpoolRoute,
-  OptimizeCarpoolRouteInputSchema,
-} from '@/ai/flows/optimize-carpool-route';
+import { optimizeCarpoolRoute } from '@/ai/flows/optimize-carpool-route';
+import { OptimizeCarpoolRouteInputSchema } from '@/lib/types';
 import {NextResponse} from 'next/server';
 
 export async function POST(req: Request) {
