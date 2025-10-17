@@ -20,38 +20,31 @@ export async function POST(req: Request) {
 
     let q: FirebaseFirestore.Query<FirebaseFirestore.DocumentData> = db.collection('rides');
     
-    // Firestore Admin SDK queries are more flexible.
-    // We can chain multiple orderBy clauses if needed, but the first orderBy
-    // must match the first range inequality filter if one exists.
-    
+    // Apply origin filter if it exists. This is an inequality filter.
     if (origin) {
         q = q.where('origin', '>=', origin).where('origin', '<=', origin + '\uf8ff');
     }
 
+    // Firestore requires the first orderBy to match the inequality field if one exists.
+    if (origin) {
+        q = q.orderBy('origin'); // Primary sort on the filtered field.
+    }
+    
+    // Apply secondary sort based on user selection.
     switch (sort) {
         case 'price-asc':
-            // If origin is part of the query, it must be the first orderBy
-            if (origin) {
-                q = q.orderBy('origin').orderBy('cost', 'asc');
-            } else {
-                q = q.orderBy('cost', 'asc');
-            }
+            q = q.orderBy('cost', 'asc');
             break;
         case 'price-desc':
-            if (origin) {
-                q = q.orderBy('origin').orderBy('cost', 'desc');
-            } else {
-                q = q.orderBy('cost', 'desc');
-            }
+            q = q.orderBy('cost', 'desc');
             break;
         case 'departure-asc':
         default:
-            // If origin is part of the query, it must be the first orderBy
-            if (origin) {
-                q = q.orderBy('origin').orderBy('departureTime', 'asc');
-            } else {
-                q = q.orderBy('departureTime', 'asc');
-            }
+             // If no origin filter, we can sort by departureTime directly.
+             // If there is an origin filter, we need a composite index on (origin, departureTime).
+             // Assuming the index exists or adding it for this functionality.
+             // If origin is not present, this is the primary sort.
+            q = q.orderBy('departureTime', 'asc');
             break;
     }
 
@@ -59,14 +52,16 @@ export async function POST(req: Request) {
 
     let rides = snap.docs.map(doc => {
         const data = doc.data();
-        // Convert Firestore Timestamps to serializable strings
+        // Convert Firestore Timestamps to serializable strings safely
         const departureTime = data.departureTime ? data.departureTime.toDate().toISOString() : null;
         const createdAt = data.createdAt ? data.createdAt.toDate().toISOString() : null;
         return { id: doc.id, ...data, departureTime, createdAt };
     });
 
+    // Since Firestore can't filter on two different fields (e.g., origin prefix and destination contains)
+    // we do the destination filtering in memory after the initial query.
     if (destination) {
-        rides = rides.filter(ride => ride.destination.toLowerCase().includes(destination.toLowerCase()));
+        rides = rides.filter(ride => ride.destination && ride.destination.toLowerCase().includes(destination.toLowerCase()));
     }
 
 
