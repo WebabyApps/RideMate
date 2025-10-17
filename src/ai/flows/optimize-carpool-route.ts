@@ -1,7 +1,6 @@
 import 'server-only';
 import { z } from 'zod';
 import { getAI } from '../getAI';
-import { Genkit } from 'genkit';
 import { Flow } from 'genkit/flow';
 
 // --- Schemas ---
@@ -64,12 +63,8 @@ export async function getOptimizeCarpoolRouteFlow(): Promise<Flow<typeof Optimiz
       outputSchema: OptimizeCarpoolRouteOutputSchema,
     },
     async (input) => {
-      const res = await ai.generate({
-        prompt,
-        input,
-        model: 'googleai/gemini-pro',
-      });
-      return res.output()!;
+      const { output } = await prompt(input);
+      return output!;
     }
   );
 
