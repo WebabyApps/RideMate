@@ -1,15 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { runOptimizeCarpoolRouteFlow, OptimizeCarpoolRouteInputSchema } from '@/ai/flows/optimize-carpool-route';
 import 'server-only';
-
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
-export async function POST(req: NextRequest) {
+import { getOptimizeCarpoolRouteFlow, OptimizeCarpoolRouteInputSchema } from '@/ai/flows/optimize-carpool-route';
+import { NextResponse } from 'next/server';
+
+export async function POST(req: Request) {
   try {
     const body = await req.json();
 
-    // The form sends waypoints as a single semicolon-separated string.
-    // The AI flow expects an array of strings.
     const waypointsArray = body.waypoints ? body.waypoints.split(';').map((w: string) => w.trim()).filter((w: string) => w) : [];
 
     const validatedInput = OptimizeCarpoolRouteInputSchema.safeParse({
@@ -24,27 +23,14 @@ export async function POST(req: NextRequest) {
       );
     }
     
-    // Lazy-load Genkit and plugins only within the API route
-    const [{ genkit }, { googleAI }] = await Promise.all([
-        import('genkit'),
-        import('@genkit-ai/google-genai'),
-    ]);
-    
-    // Configure AI instance within the server-side context
-    const ai = genkit({
-        plugins: [googleAI()],
-        logLevel: 'debug',
-        enableTracing: true,
-    });
-
-    // Run the flow with the initialized AI instance
-    const result = await runOptimizeCarpoolRouteFlow(ai, validatedInput.data);
+    const flow = await getOptimizeCarpoolRouteFlow();
+    const result = await flow(validatedInput.data);
 
     return NextResponse.json({
-        status: 'success',
-        message: 'Route optimized successfully!',
-        data: result,
-      });
+      status: 'success',
+      message: 'Route optimized successfully!',
+      data: result,
+    });
 
   } catch (error: any) {
     console.error('API Error:', error);

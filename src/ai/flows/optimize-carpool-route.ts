@@ -1,23 +1,16 @@
-'use server';
-
-/**
- * @fileOverview A carpool route optimization AI agent.
- *
- * This file defines the Genkit flow for optimizing carpool routes.
- * It is intended to be called from a server environment (e.g., an API route).
- */
-
-import { Genkit, defineFlow, definePrompt } from 'genkit';
+import 'server-only';
 import { z } from 'zod';
+import { getAI } from '../getAI';
+import { Genkit } from 'genkit';
+import { Flow } from 'genkit/flow';
 
-// Define the Zod schemas for input and output
+// --- Schemas ---
 export const OptimizeCarpoolRouteInputSchema = z.object({
   currentRoute: z.string().describe('A general text description of the carpool plan or goal (e.g., "morning commute to work").'),
   trafficConditions: z.string().describe('Real-time traffic conditions along the general route area (e.g., "heavy congestion on the main highway").'),
   waypoints: z.array(z.string()).describe('An ordered list of waypoints. Each waypoint is a string containing latitude,longitude coordinates (e.g., ["37.7749,-122.4194", "37.3861,-122.0839"]). The first waypoint is the origin, the last is the final destination.'),
   arrivalTimePreferences: z.string().describe('Text description of preferred arrival times for each participant (e.g., "Alice needs to be at work by 8:45 AM, Bob is flexible but prefers before 9:15 AM").'),
 });
-export type OptimizeCarpoolRouteInput = z.infer<typeof OptimizeCarpoolRouteInputSchema>;
 
 export const OptimizeCarpoolRouteOutputSchema = z.object({
   optimizedRoute: z.string().describe('The optimized carpool route, describing the sequence of pickups and drop-offs. Refer to waypoints by their order (e.g., "Start at Waypoint 1, pick up passenger at Waypoint 2, then proceed to destination at Waypoint 3.").'),
@@ -25,23 +18,22 @@ export const OptimizeCarpoolRouteOutputSchema = z.object({
   suggestedDepartureTime: z.string().describe('The single suggested departure time from the origin (Waypoint 1) to meet all arrival preferences, formatted as HH:MM AM/PM.'),
   costEstimate: z.string().describe('The estimated cost, considering fuel and tolls. Provide a monetary value (e.g., "$15.50").'),
 });
+
+export type OptimizeCarpoolRouteInput = z.infer<typeof OptimizeCarpoolRouteInputSchema>;
 export type OptimizeCarpoolRouteOutput = z.infer<typeof OptimizeCarpoolRouteOutputSchema>;
 
 
-/**
- * Defines and executes the carpool route optimization flow.
- * @param aiInstance An initialized Genkit instance.
- * @param input The data for the route to be optimized.
- * @returns A promise that resolves to the optimized route plan.
- */
-export async function runOptimizeCarpoolRouteFlow(aiInstance: Genkit, input: OptimizeCarpoolRouteInput): Promise<OptimizeCarpoolRouteOutput> {
-    
-    // Define the AI prompt for route optimization
-    const optimizeCarpoolRoutePrompt = definePrompt({
-      name: 'optimizeCarpoolRoutePrompt',
-      input: { schema: OptimizeCarpoolRouteInputSchema },
-      output: { schema: OptimizeCarpoolRouteOutputSchema },
-      prompt: `You are a world-class route optimization expert specializing in creating efficient and cost-effective carpool routes. Your primary goal is to determine the optimal order of visiting waypoints and suggest the best departure time to meet all constraints.
+let _flow: Flow<typeof OptimizeCarpoolRouteInputSchema, typeof OptimizeCarpoolRouteOutputSchema> | undefined;
+
+export async function getOptimizeCarpoolRouteFlow(): Promise<Flow<typeof OptimizeCarpoolRouteInputSchema, typeof OptimizeCarpoolRouteOutputSchema>> {
+  if (_flow) return _flow;
+  const ai = await getAI();
+
+  const prompt = ai.definePrompt({
+    name: 'optimizeCarpoolRoutePrompt',
+    input: { schema: OptimizeCarpoolRouteInputSchema },
+    output: { schema: OptimizeCarpoolRouteOutputSchema },
+    prompt: `You are a world-class route optimization expert specializing in creating efficient and cost-effective carpool routes. Your primary goal is to determine the optimal order of visiting waypoints and suggest the best departure time to meet all constraints.
 
     You will be provided with the following information:
     - A general description of the carpool's purpose (e.g., "Work commute").
@@ -63,24 +55,23 @@ export async function runOptimizeCarpoolRouteFlow(aiInstance: Genkit, input: Opt
 
     Please provide the optimized plan in the required structured format. Your optimized route description should be clear and easy to follow, referring to waypoints by their original index for clarity (e.g., "Start at Waypoint 1 (Origin), pick up at Waypoint 3, then pick up at Waypoint 2, and finally arrive at Waypoint 4 (Destination).").
     `,
-    });
+  });
 
-    const optimizeCarpoolRouteFlow = defineFlow(
-        {
-          name: 'optimizeCarpoolRouteFlow',
-          inputSchema: OptimizeCarpoolRouteInputSchema,
-          outputSchema: OptimizeCarpoolRouteOutputSchema,
-        },
-        async (input) => {
-          const response = await aiInstance.generate({
-            prompt: optimizeCarpoolRoutePrompt,
-            input,
-            model: 'googleai/gemini-pro',
-          });
-          
-          return response.output()!;
-        }
-      );
+  _flow = ai.defineFlow(
+    {
+      name: 'optimizeCarpoolRouteFlow',
+      inputSchema: OptimizeCarpoolRouteInputSchema,
+      outputSchema: OptimizeCarpoolRouteOutputSchema,
+    },
+    async (input) => {
+      const res = await ai.generate({
+        prompt,
+        input,
+        model: 'googleai/gemini-pro',
+      });
+      return res.output()!;
+    }
+  );
 
-    return await optimizeCarpoolRouteFlow(input);
+  return _flow;
 }
