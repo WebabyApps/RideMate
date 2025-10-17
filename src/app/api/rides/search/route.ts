@@ -16,7 +16,7 @@ function getAdminDb() {
 export async function POST(req: Request) {
   try {
     const { origin, destination, sort } = await req.json();
-    const db = getAdminDb();
+    const db = getFirestore();
 
     let q: FirebaseFirestore.Query<FirebaseFirestore.DocumentData> = db.collection('rides');
     
@@ -27,19 +27,22 @@ export async function POST(req: Request) {
     if (origin) {
         q = q.where('origin', '>=', origin).where('origin', '<=', origin + '\uf8ff');
     }
-     if (destination) {
-        // Note: Firestore is limited to one range filter per query.
-        // A more complex search would need a different approach (e.g., Algolia).
-        // For now, we filter destination on the server after the initial query.
-    }
-
 
     switch (sort) {
         case 'price-asc':
-            q = q.orderBy('origin').orderBy('cost', 'asc');
+            // If origin is part of the query, it must be the first orderBy
+            if (origin) {
+                q = q.orderBy('origin').orderBy('cost', 'asc');
+            } else {
+                q = q.orderBy('cost', 'asc');
+            }
             break;
         case 'price-desc':
-            q = q.orderBy('origin').orderBy('cost', 'desc');
+            if (origin) {
+                q = q.orderBy('origin').orderBy('cost', 'desc');
+            } else {
+                q = q.orderBy('cost', 'desc');
+            }
             break;
         case 'departure-asc':
         default:
@@ -58,7 +61,8 @@ export async function POST(req: Request) {
         const data = doc.data();
         // Convert Firestore Timestamps to serializable strings
         const departureTime = data.departureTime ? data.departureTime.toDate().toISOString() : null;
-        return { id: doc.id, ...data, departureTime };
+        const createdAt = data.createdAt ? data.createdAt.toDate().toISOString() : null;
+        return { id: doc.id, ...data, departureTime, createdAt };
     });
 
     if (destination) {
