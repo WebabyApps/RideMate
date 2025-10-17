@@ -4,29 +4,48 @@ import { useRouter, useParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { StarRating } from "@/components/star-rating";
+import { StarRating } from "@/components/ui/star-rating";
 import { Calendar, Clock, Users, DollarSign, MessageSquare, AlertCircle, Dog, Briefcase } from "lucide-react";
 import { format } from 'date-fns';
-import { useDoc, useUser, useFirestore, updateDocumentNonBlocking, useMemoFirebase } from "@/firebase";
-import { doc, arrayUnion } from "firebase/firestore";
+import { useUser, useFirestore, updateDocumentNonBlocking, useMemoFirebase } from "@/firebase";
+import { doc, arrayUnion, Timestamp } from "firebase/firestore";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
 import { RideMap } from "@/components/ride-map";
-import type { Ride } from '@/lib/types';
-import type { UserProfile } from "@/lib/types";
+import type { Ride, UserProfile } from '@/lib/types';
 import Link from 'next/link';
+import { useEffect, useState } from "react";
 
 function DriverInfo({ driverId }: { driverId: string }) {
-  const firestore = useFirestore();
+  const [driver, setDriver] = useState<UserProfile | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const driverDocRef = useMemoFirebase(() => {
-    if (!firestore || !driverId) return null;
-    return doc(firestore, 'users', driverId);
-  }, [firestore, driverId]);
+  useEffect(() => {
+    if (!driverId) {
+      setIsLoading(false);
+      return;
+    }
+    const fetchDriver = async () => {
+      try {
+        const response = await fetch(`/api/users/${driverId}`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch driver info');
+        }
+        const data = await response.json();
+        setDriver(data.user);
+      } catch (error) {
+        console.error(error);
+        setDriver(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-  const { data: driver, isLoading: isDriverLoading } = useDoc<UserProfile>(driverDocRef);
+    fetchDriver();
+  }, [driverId]);
 
-  if (isDriverLoading) {
+
+  if (isLoading) {
     return (
       <Card className="text-center">
         <CardHeader>
@@ -76,6 +95,11 @@ function DriverInfo({ driverId }: { driverId: string }) {
   );
 }
 
+// Convert API string timestamp to a Date object
+type ApiRide = Omit<Ride, 'departureTime'> & {
+  departureTime: string;
+};
+
 
 export default function RideDetailPage() {
   const { user } = useUser();
@@ -84,12 +108,41 @@ export default function RideDetailPage() {
   const params = useParams();
   const rideId = typeof params.id === 'string' ? params.id : '';
 
+  const [ride, setRide] = useState<Ride | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
   const rideDocRef = useMemoFirebase(() => {
     if (!firestore || !rideId) return null;
     return doc(firestore, 'rides', rideId);
   }, [firestore, rideId]);
 
-  const { data: ride, isLoading: isRideLoading } = useDoc<Ride>(rideDocRef);
+  useEffect(() => {
+    if (!rideId) return;
+
+    const fetchRide = async () => {
+      setIsLoading(true);
+      try {
+        const response = await fetch(`/api/rides/${rideId}`);
+        if (!response.ok) {
+          throw new Error('Ride not found');
+        }
+        const data: { ride: ApiRide } = await response.json();
+        const apiRide = data.ride;
+        // Convert ISO string back to Timestamp for consistency if needed, or just use the Date object
+        setRide({
+          ...apiRide,
+          departureTime: Timestamp.fromDate(new Date(apiRide.departureTime)),
+        });
+      } catch (error) {
+        console.error(error);
+        setRide(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchRide();
+  }, [rideId]);
+
 
   const handleBookSeat = () => {
     if (!user) {
@@ -117,9 +170,13 @@ export default function RideDetailPage() {
         title: "Seat Booked!",
         description: "You have successfully booked a seat for this ride.",
     });
+     // Optimistically update the local state
+    setRide(prevRide => prevRide ? {
+        ...prevRide,
+        availableSeats: prevRide.availableSeats - 1,
+        riderIds: [...prevRide.riderIds, user.uid],
+    } : null);
   };
-
-  const isLoading = isRideLoading;
 
   if (isLoading) {
     return (
