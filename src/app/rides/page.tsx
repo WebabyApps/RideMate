@@ -31,71 +31,80 @@ function RideList({ rides, isLoading }: { rides: Ride[] | null, isLoading: boole
     );
   }
 
-  const filteredRides = rides
-    ? rides.filter(ride => ride.departureTime && ride.departureTime.toDate() > new Date())
-    : [];
-
-  if (filteredRides.length > 0) {
+  if (!rides || rides.length === 0) {
     return (
-      <>
-        {filteredRides.map(ride => (
-          <RideCard key={ride.id} ride={ride} />
-        ))}
-      </>
+      <div className="col-span-full text-center py-10 border-2 border-dashed rounded-lg">
+        <p className="text-muted-foreground">No rides available for the selected criteria. Check back soon!</p>
+      </div>
     );
   }
 
   return (
-    <div className="col-span-full text-center py-10 border-2 border-dashed rounded-lg">
-      <p className="text-muted-foreground">No rides available for the selected criteria. Check back soon!</p>
-    </div>
+    <>
+      {rides.map(ride => (
+        <RideCard key={ride.id} ride={ride} />
+      ))}
+    </>
   );
 }
 
 
 export default function RidesPage() {
   const firestore = useFirestore();
-  const [origin, setOrigin] = useState('');
-  const [destination, setDestination] = useState('');
+  const [originFilter, setOriginFilter] = useState('');
+  const [destinationFilter, setDestinationFilter] = useState('');
   const [sort, setSort] = useState('departure-asc');
 
   const ridesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
+    // Query for all upcoming rides, ordered by departure time. Filtering will be done client-side.
+    return query(collection(firestore, 'rides'), orderBy('departureTime', 'asc'));
+  }, [firestore]);
 
-    let q: Query = query(collection(firestore, 'rides'));
+  const { data: allRides, isLoading } = useCollection<Ride>(ridesQuery);
 
-    if (origin) {
-      q = query(q, where('origin', '>=', origin), where('origin', '<=', origin + '\uf8ff'));
+  const filteredAndSortedRides = useMemo(() => {
+    if (!allRides) return null;
+
+    let processedRides = allRides.filter(ride => ride.departureTime && ride.departureTime.toDate() > new Date());
+
+    if (originFilter) {
+      processedRides = processedRides.filter(ride =>
+        ride.origin.toLowerCase().includes(originFilter.toLowerCase())
+      );
     }
-    if (destination) {
-      q = query(q, where('destination', '>=', destination), where('destination', '<=', destination + '\uf8ff'));
+
+    if (destinationFilter) {
+      processedRides = processedRides.filter(ride =>
+        ride.destination.toLowerCase().includes(destinationFilter.toLowerCase())
+      );
     }
     
-    switch (sort) {
-      case 'price-asc':
-        q = query(q, orderBy('cost', 'asc'));
-        break;
-      case 'price-desc':
-        q = query(q, orderBy('cost', 'desc'));
-        break;
-      case 'departure-asc':
-      default:
-        q = query(q, orderBy('departureTime', 'asc'));
-        break;
-    }
+    // Client-side sorting
+    processedRides.sort((a, b) => {
+        switch (sort) {
+            case 'price-asc':
+                return a.cost - b.cost;
+            case 'price-desc':
+                return b.cost - a.cost;
+            case 'departure-asc':
+            default:
+                // Data is already sorted by departure time from Firestore
+                return 0;
+        }
+    });
 
-    return q;
-  }, [firestore, origin, destination, sort]);
+    return processedRides;
+  }, [allRides, originFilter, destinationFilter, sort]);
 
-  const { data: rides, isLoading } = useCollection<Ride>(ridesQuery);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     const form = e.currentTarget as HTMLFormElement;
     const fromValue = (form.elements.namedItem('from') as HTMLInputElement).value;
     const toValue = (form.elements.namedItem('to') as HTMLInputElement).value;
-    setOrigin(fromValue);
-    setDestination(toValue);
+    setOriginFilter(fromValue);
+    setDestinationFilter(toValue);
   }
 
   return (
@@ -144,8 +153,9 @@ export default function RidesPage() {
       </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <RideList rides={rides} isLoading={isLoading} />
+        <RideList rides={filteredAndSortedRides} isLoading={isLoading} />
       </div>
     </div>
   );
 }
+
