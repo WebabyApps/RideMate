@@ -63,7 +63,10 @@ export default function RidesPage() {
   }
 
   const filteredRides = useMemo(() => {
-    if (!rides) return [];
+    // Safely handle the case where rides might be null
+    if (!rides) {
+      return [];
+    }
     let processedRides = rides.filter(ride => ride.departureTime && ride.departureTime.toDate() > new Date());
     return processedRides;
   }, [rides]);
