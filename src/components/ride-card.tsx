@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowRight, MapPin, Calendar, Clock, Users, DollarSign } from 'lucide-react';
+import { ArrowRight, MapPin, Calendar, Clock, Users, DollarSign, Dog, Briefcase } from 'lucide-react';
 import { format } from 'date-fns';
 import { Skeleton } from './ui/skeleton';
 import type { Ride } from '@/lib/types';
@@ -53,6 +53,20 @@ export function RideCard({ ride }: RideCardProps) {
             <div className="flex items-center gap-2">
                 <DollarSign className="w-4 h-4 text-muted-foreground" />
                 <span className="font-bold text-lg text-accent">${ride.cost.toFixed(2)}</span>
+            </div>
+             <div className="flex items-center gap-2 col-span-2">
+                {ride.petsAllowed && (
+                  <div className="flex items-center gap-1 text-muted-foreground" title="Pets allowed">
+                    <Dog className="w-4 h-4" />
+                    <span className="sr-only">Pets allowed</span>
+                  </div>
+                )}
+                 {ride.largeBagsAllowed && (
+                  <div className="flex items-center gap-1 text-muted-foreground" title="Large bags allowed">
+                    <Briefcase className="w-4 h-4" />
+                     <span className="sr-only">Large bags allowed</span>
+                  </div>
+                )}
             </div>
         </div>
       </CardContent>

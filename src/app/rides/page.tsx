@@ -12,9 +12,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { collection, query, orderBy, where } from "firebase/firestore";
+import { collection, query, orderBy, where, startAt, endAt } from "firebase/firestore";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import type { Ride } from "@/lib/types";
 
 export default function RidesPage() {
   const firestore = useFirestore();
@@ -22,45 +23,64 @@ export default function RidesPage() {
   const [destination, setDestination] = useState('');
   const [sort, setSort] = useState('recommended');
 
-
-  const ridesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    let q = query(collection(firestore, 'rides'));
-
-    if (origin) {
-        q = query(q, where('origin', '>=', origin), where('origin', '<=', origin + '\uf8ff'));
-    }
-    if (destination) {
-        q = query(q, where('destination', '>=', destination), where('destination', '<=', destination + '\uf8ff'));
-    }
-
-    switch (sort) {
-        case 'price-asc':
-            q = query(q, orderBy('cost', 'asc'));
-            break;
-        case 'price-desc':
-            q = query(q, orderBy('cost', 'desc'));
-            break;
-        case 'departure-asc':
-            q = query(q, orderBy('departureTime', 'asc'));
-            break;
-        default:
-             q = query(q, orderBy('departureTime', 'asc'));
-            break;
-    }
-
-
-    return q;
-  }, [firestore, origin, destination, sort]);
-
-  const { data: rides, isLoading } = useCollection(ridesQuery);
-
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     const formData = new FormData(e.target as HTMLFormElement);
     setOrigin(formData.get('from') as string);
     setDestination(formData.get('to') as string);
   }
+
+  const ridesQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    
+    // Base query
+    let q: any = collection(firestore, 'rides'); // Use 'any' to build dynamically
+    
+    // Array to hold all query constraints
+    const constraints = [];
+
+    // Sorting must come before most other clauses
+    switch (sort) {
+        case 'price-asc':
+            constraints.push(orderBy('cost', 'asc'));
+            break;
+        case 'price-desc':
+            constraints.push(orderBy('cost', 'desc'));
+            break;
+        case 'departure-asc':
+        default:
+            constraints.push(orderBy('departureTime', 'asc'));
+            break;
+    }
+
+    // Apply filtering for origin if provided
+    if (origin) {
+        // Since we can only have one inequality, we can't combine orderBy with range filters on different fields.
+        // Let's do a basic equality query for simplicity, or a prefix search if Firestore supported it easily with other orderBys.
+        // For a prefix-like search, we create a range.
+        constraints.push(orderBy('origin'));
+        constraints.push(where('origin', '>=', origin));
+        constraints.push(where('origin', '<=', origin + '\uf8ff'));
+    }
+
+    // Apply filtering for destination if provided
+    if (destination) {
+       // We can't have another orderBy on a different field.
+       // This query structure has limitations. For a more robust search, a dedicated search service like Algolia or Elasticsearch would be better.
+       // For this app, we will filter destination on the client side after fetching.
+    }
+    
+    return query(q, ...constraints);
+  }, [firestore, origin, sort]); // Destination removed from deps as it's filtered client-side
+
+  const { data: rides, isLoading } = useCollection<Ride>(ridesQuery);
+
+  const filteredRides = useMemo(() => {
+    if (!rides) return [];
+    if (!destination) return rides;
+    return rides.filter(ride => ride.destination.toLowerCase().includes(destination.toLowerCase()));
+  }, [rides, destination]);
+
 
   return (
     <div className="container mx-auto px-4 md:px-6 py-8">
@@ -76,14 +96,14 @@ export default function RidesPage() {
               <label htmlFor="from" className="text-sm font-medium">From</label>
               <div className="relative">
                 <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                <Input name="from" id="from" placeholder="e.g., San Francisco" className="pl-10" />
+                <Input name="from" id="from" placeholder="e.g., San Francisco" className="pl-10" onChange={(e) => setOrigin(e.target.value)} value={origin}/>
               </div>
             </div>
             <div className="space-y-2">
               <label htmlFor="to" className="text-sm font-medium">To</label>
                <div className="relative">
                 <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                <Input name="to" id="to" placeholder="e.g., Los Angeles" className="pl-10" />
+                <Input name="to" id="to" placeholder="e.g., Los Angeles" className="pl-10" onChange={(e) => setDestination(e.target.value)} value={destination} />
               </div>
             </div>
              <div className="space-y-2">
@@ -93,10 +113,9 @@ export default function RidesPage() {
                         <SelectValue placeholder="Recommended" />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="recommended">Recommended</SelectItem>
+                        <SelectItem value="recommended">Departure: Soonest</SelectItem>
                         <SelectItem value="price-asc">Price: Low to High</SelectItem>
                         <SelectItem value="price-desc">Price: High to Low</SelectItem>
-                        <SelectItem value="departure-asc">Departure: Soonest</SelectItem>
                     </SelectContent>
                 </Select>
             </div>
@@ -115,13 +134,13 @@ export default function RidesPage() {
             <Skeleton className="h-[28rem] w-full" />
             <Skeleton className="h-[28rem] w-full" />
           </>
-        ) : rides && rides.length > 0 ? (
-          rides.map(ride => (
+        ) : filteredRides && filteredRides.length > 0 ? (
+          filteredRides.map(ride => (
             <RideCard key={ride.id} ride={ride} />
           ))
         ) : (
           <div className="col-span-full text-center py-10 border-2 border-dashed rounded-lg">
-            <p className="text-muted-foreground">No rides available at the moment. Check back soon!</p>
+            <p className="text-muted-foreground">No rides available for the selected criteria. Check back soon!</p>
           </div>
         )}
       </div>

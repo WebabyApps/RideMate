@@ -27,6 +27,7 @@ import { format } from "date-fns";
 import { useFirestore, useUser, addDocumentNonBlocking } from "@/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { WaypointMap } from "@/components/waypoint-map";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const rideSchema = z.object({
   origin: z.string().min(3, "Origin must be at least 3 characters long."),
@@ -35,6 +36,8 @@ const rideSchema = z.object({
   departureTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Invalid time format (HH:MM)"),
   seats: z.coerce.number().int().min(1, "Must offer at least 1 seat.").max(8, "Cannot offer more than 8 seats."),
   price: z.coerce.number().min(0, "Price cannot be negative."),
+  petsAllowed: z.boolean().default(false),
+  largeBagsAllowed: z.boolean().default(false),
 });
 
 export default function OfferRidePage() {
@@ -52,6 +55,8 @@ export default function OfferRidePage() {
       departureTime: "",
       seats: 1,
       price: 10,
+      petsAllowed: false,
+      largeBagsAllowed: false,
     },
   });
   
@@ -100,6 +105,8 @@ export default function OfferRidePage() {
       availableSeats: data.seats,
       totalSeats: data.seats,
       cost: data.price,
+      petsAllowed: data.petsAllowed,
+      largeBagsAllowed: data.largeBagsAllowed,
       createdAt: serverTimestamp(),
       riderIds: [],
     });
@@ -254,6 +261,54 @@ export default function OfferRidePage() {
                             <Input type="number" min="0" step="0.50" {...field} />
                           </FormControl>
                           <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                </div>
+                
+                <div className="space-y-4">
+                    <FormLabel>Ride Options</FormLabel>
+                    <FormField
+                      control={form.control}
+                      name="petsAllowed"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                          <div className="space-y-1 leading-none">
+                            <FormLabel>
+                              Pets Allowed
+                            </FormLabel>
+                            <FormDescription>
+                              You are comfortable with passengers bringing small pets.
+                            </FormDescription>
+                          </div>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="largeBagsAllowed"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                          <div className="space-y-1 leading-none">
+                            <FormLabel>
+                              Large Bags/Luggage Allowed
+                            </FormLabel>
+                            <FormDescription>
+                               You have space for large luggage like suitcases.
+                            </FormDescription>
+                          </div>
                         </FormItem>
                       )}
                     />

@@ -19,4 +19,6 @@ export type Ride = {
   totalSeats: number;
   cost: number;
   riderIds: string[];
+  petsAllowed: boolean;
+  largeBagsAllowed: boolean;
 };

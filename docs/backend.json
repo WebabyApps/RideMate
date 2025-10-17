@@ -87,6 +87,14 @@
         "createdAt": {
             "type": "string",
             "format": "date-time"
+        },
+        "petsAllowed": {
+            "type": "boolean",
+            "description": "Indicates if pets are allowed on the ride."
+        },
+        "largeBagsAllowed": {
+            "type": "boolean",
+            "description": "Indicates if large bags/luggage are allowed."
         }
       },
       "required": [
@@ -97,7 +105,9 @@
         "departureTime",
         "availableSeats",
         "cost",
-        "createdAt"
+        "createdAt",
+        "petsAllowed",
+        "largeBagsAllowed"
       ]
     },
     "Rating": {

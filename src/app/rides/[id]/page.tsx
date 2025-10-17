@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { StarRating } from "@/components/star-rating";
-import { Calendar, Clock, Users, DollarSign, MessageSquare, AlertCircle } from "lucide-react";
+import { Calendar, Clock, Users, DollarSign, MessageSquare, AlertCircle, Dog, Briefcase } from "lucide-react";
 import { format } from 'date-fns';
 import { useDoc, useUser, useFirestore, updateDocumentNonBlocking, useMemoFirebase } from "@/firebase";
 import { doc, arrayUnion } from "firebase/firestore";
@@ -195,14 +195,18 @@ export default function RideDetailPage() {
                     <p className="font-semibold text-2xl">${ride.cost.toFixed(2)}</p>
                     <p className="text-sm text-muted-foreground">per seat</p>
                 </div>
-                 <div className="flex flex-col items-center text-center">
-                    <p className="font-semibold">Origin</p>
-                    <p className="text-sm text-muted-foreground">{ride.origin}</p>
-                </div>
-                <div className="flex flex-col items-center text-center">
-                    <p className="font-semibold">Destination</p>
-                    <p className="text-sm text-muted-foreground">{ride.destination}</p>
-                </div>
+                {ride.petsAllowed && (
+                    <div className="flex flex-col items-center text-center">
+                        <Dog className="w-8 h-8 text-primary mb-2" />
+                        <p className="font-semibold">Pets Allowed</p>
+                    </div>
+                )}
+                {ride.largeBagsAllowed && (
+                    <div className="flex flex-col items-center text-center">
+                        <Briefcase className="w-8 h-8 text-primary mb-2" />
+                        <p className="font-semibold">Large Bags</p>
+                    </div>
+                )}
             </CardContent>
           </Card>
 
