@@ -1,52 +1,53 @@
 {
   "entities": {
-    "User": {
+    "UserProfile": {
       "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "User",
+      "title": "UserProfile",
       "type": "object",
-      "description": "Represents a user within the RideMate application.",
+      "description": "Represents a user profile in the RideMate application.",
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the user."
+          "description": "Unique identifier for the user profile."
         },
         "firstName": {
           "type": "string",
-          "description": "The first name of the user."
+          "description": "User's first name."
         },
         "lastName": {
           "type": "string",
-          "description": "The last name of the user."
+          "description": "User's last name."
         },
         "email": {
           "type": "string",
-          "description": "The email address of the user.",
+          "description": "User's email address.",
           "format": "email"
         },
         "phoneNumber": {
           "type": "string",
-          "description": "The user's phone number."
+          "description": "User's phone number."
         },
-        "rating": {
-          "type": "number"
-        },
-        "avatarUrl": {
-            "type": "string",
-            "format": "uri"
+        "ratingIds": {
+          "type": "array",
+          "description": "References to Ratings given or received by the user. (Relationship: UserProfile N:N Rating)",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "required": [
         "id",
         "firstName",
         "lastName",
-        "email"
+        "email",
+        "phoneNumber"
       ]
     },
     "Ride": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Ride",
       "type": "object",
-      "description": "Represents a ride offered or requested within the RideMate application.",
+      "description": "Represents a ride offered or requested in the RideMate application.",
       "properties": {
         "id": {
           "type": "string",
@@ -54,67 +55,52 @@
         },
         "offererId": {
           "type": "string",
-          "description": "Reference to User who is offering the ride. (Relationship: User 1:N Ride)"
+          "description": "Reference to the UserProfile offering the ride. (Relationship: UserProfile 1:N Ride)"
         },
-        "origin": {
+        "departureLocation": {
           "type": "string",
-          "description": "The origin address of the ride."
+          "description": "Departure location of the ride (e.g., address or coordinates)."
         },
-        "destination": {
+        "destinationLocation": {
           "type": "string",
-          "description": "The destination address of the ride."
+          "description": "Destination location of the ride (e.g., address or coordinates)."
         },
         "departureTime": {
           "type": "string",
-          "description": "The date and time of departure.",
+          "description": "Planned departure time of the ride.",
           "format": "date-time"
         },
         "availableSeats": {
           "type": "number",
-          "description": "The number of seats available in the ride."
+          "description": "Number of available seats in the ride."
         },
-        "cost": {
+        "costPerSeat": {
           "type": "number",
-          "description": "The cost per seat for the ride."
+          "description": "Cost per seat for the ride."
         },
         "riderIds": {
           "type": "array",
-          "description": "References to Users who are riding in this ride. (Relationship: Ride 1:N User)",
+          "description": "References to UserProfiles joining the ride as riders. (Relationship: UserProfile N:N Ride)",
           "items": {
             "type": "string"
           }
-        },
-        "createdAt": {
-            "type": "string",
-            "format": "date-time"
-        },
-        "petsAllowed": {
-            "type": "boolean",
-            "description": "Indicates if pets are allowed on the ride."
-        },
-        "largeBagsAllowed": {
-            "type": "boolean",
-            "description": "Indicates if large bags/luggage are allowed."
         }
       },
       "required": [
         "id",
         "offererId",
-        "origin",
-        "destination",
+        "departureLocation",
+        "destinationLocation",
         "departureTime",
         "availableSeats",
-        "cost",
-        "createdAt",
-        "petsAllowed",
-        "largeBagsAllowed"
+        "costPerSeat"
       ]
     },
     "Rating": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Rating",
       "type": "object",
-      "description": "Represents a rating given by a user for a ride.",
+      "description": "Represents a rating and review of a user's carpool experience.",
       "properties": {
         "id": {
           "type": "string",
@@ -122,104 +108,147 @@
         },
         "raterId": {
           "type": "string",
-          "description": "Reference to the User who gave the rating. (Relationship: User 1:N Rating)"
+          "description": "Reference to the UserProfile giving the rating. (Relationship: UserProfile 1:N Rating)"
         },
-        "ratedRideId": {
+        "ratedUserId": {
           "type": "string",
-          "description": "Reference to the Ride that is being rated. (Relationship: Ride 1:N Rating)"
+          "description": "Reference to the UserProfile being rated. (Relationship: UserProfile 1:N Rating)"
+        },
+        "rideId": {
+          "type": "string",
+          "description": "Reference to the Ride related to rating (Relationship: Ride 1:N Rating)"
         },
         "ratingValue": {
           "type": "number",
-          "description": "The rating value (e.g., 1-5 stars)."
+          "description": "The rating value (e.g., on a scale of 1 to 5)."
         },
-        "comment": {
+        "reviewText": {
           "type": "string",
-          "description": "Optional comment providing more details about the rating."
+          "description": "Optional review text providing more details about the experience."
         }
       },
       "required": [
         "id",
         "raterId",
-        "ratedRideId",
+        "ratedUserId",
+        "rideId",
         "ratingValue"
       ]
     },
-    "Message": {
+    "ChatMessage": {
       "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Message",
+      "title": "ChatMessage",
       "type": "object",
-      "description": "Represents a message sent between users regarding a specific ride.",
+      "description": "Represents a chat message exchanged between carpool participants.",
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the message."
-        },
-        "rideId": {
-          "type": "string",
-          "description": "Reference to the Ride this message is about."
+          "description": "Unique identifier for the chat message."
         },
         "senderId": {
           "type": "string",
-          "description": "Reference to the User who sent the message."
+          "description": "Reference to the UserProfile sending the message. (Relationship: UserProfile 1:N ChatMessage)"
         },
-        "receiverId": {
+        "rideId": {
           "type": "string",
-          "description": "Reference to the User who should receive the message."
+          "description": "Reference to the Ride the message is associated with. (Relationship: Ride 1:N ChatMessage)"
         },
-        "text": {
+        "messageText": {
           "type": "string",
-          "description": "The content of the message."
+          "description": "The text content of the chat message."
         },
-        "createdAt": {
+        "timestamp": {
           "type": "string",
+          "description": "Timestamp indicating when the message was sent.",
           "format": "date-time"
         }
       },
       "required": [
         "id",
-        "rideId",
         "senderId",
-        "receiverId",
-        "text",
-        "createdAt"
+        "rideId",
+        "messageText",
+        "timestamp"
       ]
     }
   },
   "auth": {
     "providers": [
-      "password"
+      "password",
+      "anonymous"
     ]
   },
   "firestore": {
-    "collections": [
+    "structure": [
       {
-        "path": "/users",
-        "schema": {
-          "$ref": "#/entities/User"
-        },
-        "description": "Stores user profiles."
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "UserProfile",
+          "schema": {
+            "$ref": "#/backend/entities/UserProfile"
+          },
+          "description": "Stores user profile information. Path-based ownership is enforced via the 'userId' parameter.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user, matching the Firebase Auth UID."
+            }
+          ]
+        }
       },
       {
-        "path": "/rides",
-        "schema": {
-          "$ref": "#/entities/Ride"
-        },
-        "description": "Stores all available rides."
+        "path": "/rides/{rideId}",
+        "definition": {
+          "entityName": "Ride",
+          "schema": {
+            "$ref": "#/backend/entities/Ride"
+          },
+          "description": "Stores ride information. Includes 'offererId' to identify the ride creator and 'riderIds' as an array of user IDs who joined the ride.",
+          "params": [
+            {
+              "name": "rideId",
+              "description": "The unique identifier of the ride."
+            }
+          ]
+        }
       },
       {
-        "path": "/rides/{rideId}/ratings",
-        "schema": {
-          "$ref": "#/entities/Rating"
-        },
-        "description": "Stores ratings for a specific ride."
+        "path": "/ratings/{ratingId}",
+        "definition": {
+          "entityName": "Rating",
+          "schema": {
+            "$ref": "#/backend/entities/Rating"
+          },
+          "description": "Stores ride rating information.  Includes 'raterId' and 'ratedUserId' for authorization independence. ",
+          "params": [
+            {
+              "name": "ratingId",
+              "description": "The unique identifier of the rating."
+            }
+          ]
+        }
       },
       {
-        "path": "/rides/{rideId}/messages",
-        "schema": {
-          "$ref": "#/entities/Message"
-        },
-        "description": "Stores messages related to a specific ride."
+        "path": "/rides/{rideId}/messages/{messageId}",
+        "definition": {
+          "entityName": "ChatMessage",
+          "schema": {
+            "$ref": "#/backend/entities/ChatMessage"
+          },
+          "description": "Stores chat messages associated with a specific ride.",
+          "params": [
+            {
+              "name": "rideId",
+              "description": "The unique identifier of the ride."
+            },
+            {
+              "name": "messageId",
+              "description": "The unique identifier of the chat message."
+            }
+          ]
+        }
       }
-    ]
+    ],
+    "reasoning": "The Firestore structure is designed to support the RideMate application's core features, focusing on security, scalability, and ease of debugging. It prioritizes Authorization Independence by denormalizing relevant data, ensuring that security rules can be evaluated without relying on `get()` calls. Structural Segregation is used to maintain homogeneous security postures within collections. Access Modeling follows consistent patterns for ownership and collaboration, primarily using path-based ownership and membership maps.  \n\nUserProfile data is stored under `/users/{userId}` allowing simple, path-based ownership rules.  Rides are stored under `/rides/{rideId}` with the `offererId` indicating the user who created it. Ratings are stored in `/ratings/{ratingId}`.  Chat messages are stored in the `/rides/{rideId}/messages/{messageId}` subcollection, inheriting context from the ride to which they belong.  This approach allows efficient querying of messages related to specific rides.\n\nAuthorization Independence is achieved as follows:\n\n*   **Rides:** The `Ride` document includes `offererId` for easy identification of the ride creator.  Security rules can use `request.auth.uid == resource.data.offererId` without needing to `get()` the user document.\n*   **Ratings:** The `Rating` document includes both `raterId` and `ratedUserId`, enabling rules to check who created the rating and who is being rated, without external `get()` calls.\n*   **Chat Messages:** Chat messages are stored as a subcollection of the ride. This design decision, while requiring slightly more complex queries, ensures that the messages are contextually linked to the ride. Security rules will need to check `request.auth.uid` against authorized users for the specific ride.\n\nQAPs (Rules Are Not Filters) are supported:\n\n*   Listing Rides:  The `/rides` collection supports listing rides. Security rules should control who can read or write rides based on user roles or ride ownership. Denormalization of relevant data into the `Ride` document facilitates these rules.\n*   Listing Ratings: Similarly, the `/ratings` collection supports listing ratings, with security rules governing access based on the `raterId` or `ratedUserId`.\n*   Listing Chat Messages: The `/rides/{rideId}/messages` subcollection enables retrieval of messages for a specific ride. Security rules must ensure that only users who are participants in the ride can access these messages. Because this is a subcollection, listing must happen in the context of a specific ride."
   }
 }

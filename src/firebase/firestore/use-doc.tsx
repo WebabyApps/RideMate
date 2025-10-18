@@ -24,24 +24,18 @@ export interface UseDocResult<T> {
   error: FirestoreError | Error | null; // Error object, or null.
 }
 
-
-// A custom type that marks an object as having been memoized.
-type Memoized<T> = T & { __memo: true };
-
-function isMemoized(item: any): item is Memoized<any> {
-    return item && item.__memo === true;
-}
-
 /**
  * React hook to subscribe to a single Firestore document in real-time.
  * Handles nullable references.
+ * 
+ * IMPORTANT! YOU MUST MEMOIZE the inputted memoizedTargetRefOrQuery or BAD THINGS WILL HAPPEN
+ * use useMemo to memoize it per React guidence.  Also make sure that it's dependencies are stable
+ * references
  *
- * IMPORTANT! The document reference passed to this hook MUST be memoized using the `useMemoFirebase` hook
- * to prevent infinite re-renders and Firestore errors.
  *
  * @template T Optional type for document data. Defaults to any.
- * @param {DocumentReference<DocumentData> | null | undefined} memoizedDocRef -
- * The memoized Firestore DocumentReference. Waits if null/undefined.
+ * @param {DocumentReference<DocumentData> | null | undefined} docRef -
+ * The Firestore DocumentReference. Waits if null/undefined.
  * @returns {UseDocResult<T>} Object with data, isLoading, error.
  */
 export function useDoc<T = any>(
@@ -54,15 +48,6 @@ export function useDoc<T = any>(
   const [error, setError] = useState<FirestoreError | Error | null>(null);
 
   useEffect(() => {
-    // If the doc ref is defined, it must be memoized.
-    if (memoizedDocRef && !isMemoized(memoizedDocRef)) {
-        console.error("The document reference passed to useDoc was not memoized with useMemoFirebase. This will cause performance issues and bugs.", memoizedDocRef);
-        setError(new Error("Document reference not memoized. See console for details."));
-        setData(null);
-        setIsLoading(false);
-        return;
-    }
-    
     if (!memoizedDocRef) {
       setData(null);
       setIsLoading(false);
@@ -72,6 +57,7 @@ export function useDoc<T = any>(
 
     setIsLoading(true);
     setError(null);
+    // Optional: setData(null); // Clear previous data instantly
 
     const unsubscribe = onSnapshot(
       memoizedDocRef,
@@ -79,9 +65,10 @@ export function useDoc<T = any>(
         if (snapshot.exists()) {
           setData({ ...(snapshot.data() as T), id: snapshot.id });
         } else {
+          // Document does not exist
           setData(null);
         }
-        setError(null);
+        setError(null); // Clear any previous error on successful snapshot (even if doc doesn't exist)
         setIsLoading(false);
       },
       (error: FirestoreError) => {
@@ -94,12 +81,13 @@ export function useDoc<T = any>(
         setData(null)
         setIsLoading(false)
 
+        // trigger global error propagation
         errorEmitter.emit('permission-error', contextualError);
       }
     );
 
     return () => unsubscribe();
-  }, [memoizedDocRef]);
+  }, [memoizedDocRef]); // Re-run if the memoizedDocRef changes.
 
   return { data, isLoading, error };
 }
