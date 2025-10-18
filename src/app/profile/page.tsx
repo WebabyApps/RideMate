@@ -2,8 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { useUser, useFirestore, useCollection, useMemoFirebase, setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase";
-import { collection, query, where, doc, arrayRemove, increment, orderBy } from 'firebase/firestore';
+import { useUser, useFirestore, deleteDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase";
+import { collection, query, where, doc, arrayRemove, increment, getDocs } from 'firebase/firestore';
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -51,15 +51,29 @@ const profileSchema = z.object({
 
 function PassengerList({ riderIds }: { riderIds: string[] }) {
     const firestore = useFirestore();
-    const riderProfilesQuery = useMemoFirebase(() => {
-        if (!firestore || riderIds.length === 0) return null;
-        return query(collection(firestore, 'users'), where('id', 'in', riderIds));
+    const [riderProfiles, setRiderProfiles] = useState<UserProfile[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        if (!firestore || riderIds.length === 0) {
+            setIsLoading(false);
+            setRiderProfiles([]);
+            return;
+        };
+        const fetchRiders = async () => {
+            setIsLoading(true);
+            const riderQuery = query(collection(firestore, 'users'), where('id', 'in', riderIds));
+            const snapshot = await getDocs(riderQuery);
+            const profiles = snapshot.docs.map(doc => doc.data() as UserProfile);
+            setRiderProfiles(profiles);
+            setIsLoading(false);
+        }
+        fetchRiders();
     }, [firestore, riderIds]);
 
-    const { data: riderProfiles, isLoading } = useCollection<UserProfile>(riderProfilesQuery);
 
     if (isLoading) return <Skeleton className="h-6 w-full mt-2" />;
-    if (!riderProfiles || riderProfiles.length === 0) return <p className="text-sm text-muted-foreground mt-2">No passengers yet.</p>;
+    if (riderProfiles.length === 0) return <p className="text-sm text-muted-foreground mt-2">No passengers yet.</p>;
 
     return (
         <div className="flex flex-wrap gap-4 mt-2">
@@ -79,25 +93,39 @@ function PassengerList({ riderIds }: { riderIds: string[] }) {
 function OfferedRidesList({ userId }: { userId: string }) {
     const firestore = useFirestore();
     const { toast } = useToast();
+    const [userRides, setUserRides] = useState<Ride[] | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    
+    useEffect(() => {
+        if (!firestore) return;
 
-    const userRidesQuery = useMemoFirebase(() => {
-        if (!firestore) return null;
-        return query(collection(firestore, 'rides'), where('offererId', '==', userId), orderBy('departureTime', 'desc'));
+        const fetchRides = async () => {
+            setIsLoading(true);
+            const ridesQuery = query(collection(firestore, 'rides'), where('offererId', '==', userId));
+            const snapshot = await getDocs(ridesQuery);
+            const rides = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Ride));
+            // Manual sort as Firestore doesn't allow multiple inequalities
+            rides.sort((a,b) => b.createdAt.toMillis() - a.createdAt.toMillis());
+            setUserRides(rides);
+            setIsLoading(false);
+        };
+
+        fetchRides();
     }, [firestore, userId]);
 
-    const { data: userRides, isLoading: areRidesLoading } = useCollection<Ride>(userRidesQuery);
 
     const handleCancelRide = (rideId: string) => {
         if (!firestore) return;
         const rideDocRef = doc(firestore, 'rides', rideId);
         deleteDocumentNonBlocking(rideDocRef);
+        setUserRides(prevRides => prevRides?.filter(ride => ride.id !== rideId) || null);
         toast({
         title: "Ride Cancelled",
         description: "You have successfully cancelled the ride.",
         });
     };
 
-    if (areRidesLoading) {
+    if (isLoading) {
         return <Skeleton className="h-40 w-full" />;
     }
 
@@ -158,13 +186,24 @@ function OfferedRidesList({ userId }: { userId: string }) {
 function BookedRidesList({ userId }: { userId: string }) {
     const firestore = useFirestore();
     const { toast } = useToast();
+    const [bookedRides, setBookedRides] = useState<Ride[] | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
 
-    const bookedRidesQuery = useMemoFirebase(() => {
-        if (!firestore) return null;
-        return query(collection(firestore, 'rides'), where('riderIds', 'array-contains', userId));
+    useEffect(() => {
+        if (!firestore) return;
+
+        const fetchRides = async () => {
+            setIsLoading(true);
+            const ridesQuery = query(collection(firestore, 'rides'), where('riderIds', 'array-contains', userId));
+            const snapshot = await getDocs(ridesQuery);
+            const rides = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Ride));
+            setBookedRides(rides);
+            setIsLoading(false);
+        };
+
+        fetchRides();
     }, [firestore, userId]);
-    
-    const { data: bookedRides, isLoading: areRidesLoading } = useCollection<Ride>(bookedRidesQuery);
+
 
     const handleCancelBooking = (rideId: string) => {
         if (!firestore) return;
@@ -173,13 +212,14 @@ function BookedRidesList({ userId }: { userId: string }) {
             riderIds: arrayRemove(userId),
             availableSeats: increment(1)
         });
+        setBookedRides(prevRides => prevRides?.filter(ride => ride.id !== rideId) || null);
         toast({
             title: "Booking Cancelled",
             description: "You have successfully cancelled your booking.",
         });
     };
 
-    if (areRidesLoading) {
+    if (isLoading) {
         return <Skeleton className="h-40 w-full" />;
     }
 
@@ -249,7 +289,7 @@ export default function ProfilePage() {
     }
   }, [user, isUserLoading, router]);
 
-  const userDocRef = useMemoFirebase(() => {
+  const userDocRef = useMemo(() => {
     if (!firestore || !user) return null;
     return doc(firestore, 'users', user.uid);
   }, [firestore, user]);
@@ -389,3 +429,5 @@ export default function ProfilePage() {
     </div>
   );
 }
+
+    
