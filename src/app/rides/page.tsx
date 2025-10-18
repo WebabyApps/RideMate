@@ -23,7 +23,7 @@ export const dynamic = 'force-dynamic';
 
 export default function RidesPage() {
   const firestore = useFirestore();
-  const [allRides, setAllRides] = useState<Ride[]>([]);
+  const [allRides, setAllRides] = useState<Ride[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [originFilter, setOriginFilter] = useState('');
   const [destinationFilter, setDestinationFilter] = useState('');
@@ -55,6 +55,9 @@ export default function RidesPage() {
 
 
   const filteredAndSortedRides = useMemo(() => {
+    if (!allRides) {
+      return null;
+    }
     let processedRides = [...allRides];
 
     if (originFilter) {
