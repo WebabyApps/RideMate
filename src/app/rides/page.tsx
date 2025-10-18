@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import type { Ride } from "@/lib/types";
 import { useFirestore } from "@/firebase";
 import { collection, query, getDocs, orderBy, where, Timestamp } from "firebase/firestore";
@@ -57,29 +57,29 @@ export default function RidesPage() {
   const [destinationFilter, setDestinationFilter] = useState('');
   const [sort, setSort] = useState('departure-asc');
 
-  useEffect(() => {
+  const fetchRides = useCallback(async () => {
     if (!firestore) return;
-
-    const fetchRides = async () => {
-      setIsLoading(true);
-      try {
-        const ridesQuery = query(
-          collection(firestore, 'rides'),
-          where('departureTime', '>', Timestamp.now()),
-        );
-        const querySnapshot = await getDocs(ridesQuery);
-        const ridesData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Ride));
-        setAllRides(ridesData);
-      } catch (error) {
-        console.error("Error fetching rides:", error);
-        setAllRides([]); // Set to empty array on error
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchRides();
+    setIsLoading(true);
+    try {
+      const ridesQuery = query(
+        collection(firestore, 'rides'),
+        where('departureTime', '>', Timestamp.now())
+      );
+      const querySnapshot = await getDocs(ridesQuery);
+      const ridesData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Ride));
+      setAllRides(ridesData);
+    } catch (error) {
+      console.error("Error fetching rides:", error);
+      setAllRides([]); // Set to empty array on error
+    } finally {
+      setIsLoading(false);
+    }
   }, [firestore]);
+
+
+  useEffect(() => {
+    fetchRides();
+  }, [fetchRides]);
 
 
   const filteredAndSortedRides = useMemo(() => {

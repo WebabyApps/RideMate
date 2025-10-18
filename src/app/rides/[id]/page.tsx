@@ -7,12 +7,12 @@ import { Button } from "@/components/ui/button";
 import { StarRating } from "@/components/star-rating";
 import { Calendar, Clock, Users, DollarSign, MessageSquare, AlertCircle, Dog, Briefcase, User } from "lucide-react";
 import { format } from 'date-fns';
-import { useUser, useFirestore, updateDocumentNonBlocking, useMemoFirebase } from "@/firebase";
-import { doc, arrayUnion, arrayRemove, increment } from "firebase/firestore";
+import { useUser, useFirestore, updateDocumentNonBlocking, addDocumentNonBlocking, useMemoFirebase, useCollection } from "@/firebase";
+import { doc, arrayUnion, arrayRemove, increment, collection, query, where, getDocs, writeBatch } from "firebase/firestore";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
 import { RideMap } from "@/components/ride-map";
-import type { Ride, UserProfile, Passenger } from '@/lib/types';
+import type { Ride, UserProfile, Passenger, Booking } from '@/lib/types';
 import Link from 'next/link';
 import { useDoc } from "@/firebase/firestore/use-doc";
 import {
@@ -26,9 +26,34 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { useEffect } from "react";
 
-function DriverInfo({ name, avatarUrl, rating }: { name: string, avatarUrl: string, rating: number }) {
-  if (!name) {
+function DriverInfo({ offererId }: { offererId: string }) {
+  const firestore = useFirestore();
+  const driverDocRef = useMemoFirebase(() => {
+      if (!firestore || !offererId) return null;
+      return doc(firestore, 'users', offererId);
+  }, [firestore, offererId]);
+
+  const { data: driver, isLoading } = useDoc<UserProfile>(driverDocRef);
+
+  if (isLoading) {
+    return (
+       <Card>
+          <CardHeader><CardTitle className="font-headline">Driver</CardTitle></CardHeader>
+          <CardContent className="flex flex-col items-center gap-4">
+              <Skeleton className="w-24 h-24 rounded-full"/>
+              <div className="text-center space-y-2">
+                  <Skeleton className="h-6 w-32" />
+                  <Skeleton className="h-5 w-24" />
+              </div>
+              <Skeleton className="h-10 w-full" />
+          </CardContent>
+       </Card>
+    )
+  }
+
+  if (!driver) {
     return (
       <Card>
         <CardHeader>
@@ -38,7 +63,7 @@ function DriverInfo({ name, avatarUrl, rating }: { name: string, avatarUrl: stri
     );
   }
 
-  const firstName = name.split(' ')[0];
+  const firstName = driver.firstName;
 
   return (
     <Card className="text-center">
@@ -47,12 +72,12 @@ function DriverInfo({ name, avatarUrl, rating }: { name: string, avatarUrl: stri
       </CardHeader>
       <CardContent className="flex flex-col items-center gap-4">
         <Avatar className="w-24 h-24 border-4 border-primary">
-          <AvatarImage src={avatarUrl} alt={name} />
-          <AvatarFallback>{name?.charAt(0)}</AvatarFallback>
+          <AvatarImage src={driver.avatarUrl} alt={driver.firstName} />
+          <AvatarFallback>{driver.firstName?.charAt(0)}</AvatarFallback>
         </Avatar>
         <div className="text-center">
-          <p className="font-bold text-xl">{name}</p>
-          <StarRating rating={rating || 0} className="justify-center mt-1" />
+          <p className="font-bold text-xl">{driver.firstName} {driver.lastName}</p>
+          <StarRating rating={driver.rating || 0} className="justify-center mt-1" />
         </div>
         <Button variant="outline" className="w-full">
           <MessageSquare className="w-4 h-4 mr-2" /> Message {firstName}
@@ -62,8 +87,22 @@ function DriverInfo({ name, avatarUrl, rating }: { name: string, avatarUrl: stri
   );
 }
 
-function PassengerList({ passengers }: { passengers: Passenger[] | undefined }) {
-    if (!passengers || passengers.length === 0) {
+function PassengerList({ rideId }: { rideId: string }) {
+    const firestore = useFirestore();
+    const bookingsQuery = useMemoFirebase(() => {
+        if (!firestore) return null;
+        return query(collection(firestore, 'bookings'), where('rideId', '==', rideId));
+    }, [firestore, rideId]);
+
+    const { data: bookings, isLoading } = useCollection<Booking>(bookingsQuery);
+
+    if (isLoading) {
+        return <Skeleton className="h-12 w-full" />
+    }
+
+    const passengers = bookings?.map(b => b.passengerInfo) || [];
+
+    if (passengers.length === 0) {
         return <p className="text-sm text-muted-foreground">No passengers have booked yet.</p>;
     }
 
@@ -94,16 +133,23 @@ export default function RideDetailPage() {
     return doc(firestore, 'rides', rideId);
   }, [firestore, rideId]);
 
-  const { data: ride, isLoading } = useDoc<Ride>(rideDocRef);
+  const { data: ride, isLoading: isRideLoading } = useDoc<Ride>(rideDocRef);
 
-  const userDocRef = useMemoFirebase(() => {
+  const bookingsQuery = useMemoFirebase(() => {
+    if (!firestore || !rideId) return null;
+    return query(collection(firestore, 'bookings'), where('rideId', '==', rideId));
+  }, [firestore, rideId]);
+
+  const { data: bookings, isLoading: areBookingsLoading } = useCollection<Booking>(bookingsQuery);
+
+  const userProfileDocRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return doc(firestore, 'users', user.uid);
   }, [firestore, user]);
-  const { data: userProfile } = useDoc<UserProfile>(userDocRef);
+  const { data: userProfile } = useDoc<UserProfile>(userProfileDocRef);
 
 
-  const handleBookSeat = () => {
+  const handleBookSeat = async () => {
     if (!user || user.isAnonymous) {
       toast({
         title: "Please Sign In",
@@ -114,15 +160,26 @@ export default function RideDetailPage() {
       return;
     }
 
-    if (!rideDocRef || !ride || !userProfile) return;
+    if (!rideDocRef || !ride || !userProfile || !firestore) return;
 
-    if (ride?.riderIds?.includes(user.uid) || ride?.offererId === user.uid) {
+    const isAlreadyBooked = bookings?.some(b => b.userId === user.uid);
+
+    if (isAlreadyBooked || ride.offererId === user.uid) {
         toast({
             variant: "destructive",
             title: "Cannot book seat",
             description: "You are already associated with this ride.",
         });
         return;
+    }
+
+    if ((ride.totalSeats - (bookings?.length || 0)) <= 0) {
+      toast({
+        variant: "destructive",
+        title: "Ride is Full",
+        description: "Sorry, there are no available seats on this ride.",
+      });
+      return;
     }
     
     const passengerData: Passenger = {
@@ -132,11 +189,14 @@ export default function RideDetailPage() {
         avatarUrl: userProfile.avatarUrl,
     };
 
-    updateDocumentNonBlocking(rideDocRef, {
-        riderIds: arrayUnion(user.uid),
-        passengers: arrayUnion(passengerData),
-        availableSeats: increment(-1),
-    });
+    const bookingData = {
+        rideId: ride.id,
+        userId: user.uid,
+        passengerInfo: passengerData,
+    };
+    
+    const bookingsColRef = collection(firestore, 'bookings');
+    await addDocumentNonBlocking(bookingsColRef, bookingData);
 
     toast({
         title: "Seat Booked!",
@@ -144,30 +204,31 @@ export default function RideDetailPage() {
     });
   };
 
-  const handleCancelBooking = () => {
-    if (!user || !rideDocRef || !ride) return;
-  
-    const passengerToRemove = ride.passengers.find(p => p.id === user.uid);
-    if (!passengerToRemove) {
+  const handleCancelBooking = async () => {
+    if (!user || !firestore || !rideId) return;
+
+    const userBooking = bookings?.find(b => b.userId === user.uid);
+
+    if (!userBooking) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Could not find your passenger details to cancel the booking."
+        description: "Could not find your booking to cancel."
       });
       return;
     }
-  
-    updateDocumentNonBlocking(rideDocRef, {
-      riderIds: arrayRemove(user.uid),
-      passengers: arrayRemove(passengerToRemove),
-      availableSeats: increment(1)
-    });
+    
+    const bookingDocRef = doc(firestore, 'bookings', userBooking.id);
+    await deleteDocumentNonBlocking(bookingDocRef);
   
     toast({
       title: "Booking Cancelled",
       description: "Your booking has been successfully cancelled."
     });
   };
+  
+  const isLoading = isRideLoading || areBookingsLoading;
+  const availableSeats = ride ? ride.totalSeats - (bookings?.length || 0) : 0;
 
   if (isLoading) {
     return (
@@ -204,9 +265,9 @@ export default function RideDetailPage() {
     )
   }
 
-  const isUserBooked = user ? ride.riderIds?.includes(user.uid) : false;
+  const isUserBooked = user ? bookings?.some(b => b.userId === user.uid) : false;
   const isUserTheDriver = user ? ride.offererId === user.uid : false;
-  const isRideFull = ride.availableSeats === 0;
+  const isRideFull = availableSeats <= 0;
   
   return (
     <div className="container mx-auto max-w-5xl px-4 md:px-6 py-8">
@@ -240,7 +301,7 @@ export default function RideDetailPage() {
             <CardContent className="pt-0 grid grid-cols-2 md:grid-cols-4 gap-6">
                 <div className="flex flex-col items-center text-center">
                     <Users className="w-8 h-8 text-primary mb-2" />
-                    <p className="font-semibold">{ride.availableSeats} of {ride.totalSeats} Seats Left</p>
+                    <p className="font-semibold">{availableSeats} of {ride.totalSeats} Seats Left</p>
                 </div>
                  <div className="flex flex-col items-center text-center">
                     <DollarSign className="w-8 h-8 text-accent mb-2" />
@@ -264,13 +325,13 @@ export default function RideDetailPage() {
 
         </div>
         <div className="space-y-6 sticky top-24">
-          <DriverInfo name={ride.offererName} avatarUrl={ride.offererAvatarUrl} rating={0} />
+          <DriverInfo offererId={ride.offererId} />
           <Card>
             <CardHeader>
               <CardTitle className="font-headline flex items-center gap-2"><Users className="h-5 w-5"/>Passengers</CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
-              <PassengerList passengers={ride.passengers} />
+              <PassengerList rideId={rideId} />
             </CardContent>
           </Card>
            <div className="sticky top-24">

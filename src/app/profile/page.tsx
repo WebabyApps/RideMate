@@ -2,8 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useMemo, useCallback } from "react";
-import { useUser, useFirestore, deleteDocumentNonBlocking, updateDocumentNonBlocking, setDocumentNonBlocking } from "@/firebase";
-import { collection, query, where, doc, arrayRemove, increment, getDocs, orderBy, writeBatch } from 'firebase/firestore';
+import { useUser, useFirestore, deleteDocumentNonBlocking, updateDocumentNonBlocking, setDocumentNonBlocking, useCollection } from "@/firebase";
+import { collection, query, where, doc, arrayRemove, increment, getDocs, orderBy, writeBatch, deleteDoc } from 'firebase/firestore';
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -43,10 +43,23 @@ import {
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
-import type { Ride, UserProfile, Passenger } from "@/lib/types";
+import type { Ride, UserProfile, Passenger, Booking } from "@/lib/types";
 import { useMemoFirebase } from "@/firebase/provider";
 
-function PassengerList({ passengers }: { passengers: Passenger[] | undefined }) {
+
+function PassengerList({ rideId }: { rideId: string }) {
+    const firestore = useFirestore();
+    const bookingsQuery = useMemoFirebase(() => {
+        if (!firestore) return null;
+        return query(collection(firestore, 'bookings'), where('rideId', '==', rideId));
+    }, [firestore, rideId]);
+
+    const { data: bookings, isLoading } = useCollection<Booking>(bookingsQuery);
+
+    if (isLoading) return <Skeleton className="h-8 w-full" />;
+
+    const passengers = bookings?.map(b => b.passengerInfo) || [];
+
     if (!passengers || passengers.length === 0) {
         return <p className="text-sm text-muted-foreground mt-2">No passengers yet.</p>;
     }
@@ -97,15 +110,37 @@ function OfferedRidesList({ userId }: { userId: string }) {
     }, [fetchRides]);
 
 
-    const handleCancelRide = (rideId: string) => {
+    const handleCancelRide = async (rideId: string) => {
         if (!firestore) return;
+
+        const batch = writeBatch(firestore);
+        
+        // 1. Delete the ride document
         const rideDocRef = doc(firestore, 'rides', rideId);
-        deleteDocumentNonBlocking(rideDocRef);
-        setUserRides(prevRides => prevRides?.filter(ride => ride.id !== rideId) || null);
-        toast({
-        title: "Ride Cancelled",
-        description: "You have successfully cancelled the ride.",
+        batch.delete(rideDocRef);
+
+        // 2. Find and delete all associated bookings
+        const bookingsQuery = query(collection(firestore, 'bookings'), where('rideId', '==', rideId));
+        const bookingsSnapshot = await getDocs(bookingsQuery);
+        bookingsSnapshot.forEach(bookingDoc => {
+            batch.delete(bookingDoc.ref);
         });
+
+        try {
+            await batch.commit();
+            setUserRides(prevRides => prevRides?.filter(ride => ride.id !== rideId) || null);
+            toast({
+                title: "Ride Cancelled",
+                description: "You have successfully cancelled the ride and all its bookings.",
+            });
+        } catch (error) {
+            console.error("Error cancelling ride:", error);
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: "Could not cancel the ride. Please try again.",
+            });
+        }
     };
 
     if (isLoading) {
@@ -131,7 +166,7 @@ function OfferedRidesList({ userId }: { userId: string }) {
                     <div>
                         <p className="font-bold">{ride.origin} to {ride.destination}</p>
                         <p className="text-sm text-muted-foreground">{ride.departureTime ? format(ride.departureTime.toDate(), 'PPpp') : ''}</p>
-                        <p className="text-sm">${ride.cost} per seat - {ride.availableSeats} of {ride.totalSeats} seats left</p>
+                        <p className="text-sm">${ride.cost} per seat</p>
                     </div>
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
@@ -158,7 +193,7 @@ function OfferedRidesList({ userId }: { userId: string }) {
                 <Separator className="my-3"/>
                 <div>
                     <h4 className="font-semibold text-sm flex items-center gap-2"><Users className="h-4 w-4"/>Passengers</h4>
-                    <PassengerList passengers={ride.passengers}/>
+                    <PassengerList rideId={ride.id} />
                 </div>
             </Card>
         ))}
@@ -169,16 +204,38 @@ function OfferedRidesList({ userId }: { userId: string }) {
 function BookedRidesList({ userId }: { userId: string }) {
     const firestore = useFirestore();
     const { toast } = useToast();
-    const [bookedRides, setBookedRides] = useState<Ride[] | null>(null);
+    const [bookedRides, setBookedRides] = useState<{ride: Ride, bookingId: string}[] | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
     const fetchBookedRides = useCallback(async () => {
-        if (!firestore) return;
+        if (!firestore || !userId) return;
         setIsLoading(true);
-        const ridesQuery = query(collection(firestore, 'rides'), where('riderIds', 'array-contains', userId));
-        const snapshot = await getDocs(ridesQuery);
-        const rides = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Ride));
-        setBookedRides(rides);
+
+        // 1. Find user's bookings
+        const bookingsQuery = query(collection(firestore, 'bookings'), where('userId', '==', userId));
+        const bookingsSnapshot = await getDocs(bookingsQuery);
+        const userBookings = bookingsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Booking));
+
+        if (userBookings.length === 0) {
+            setBookedRides([]);
+            setIsLoading(false);
+            return;
+        }
+
+        // 2. Fetch the ride details for each booking
+        const ridePromises = userBookings.map(async (booking) => {
+            const rideDocRef = doc(firestore, 'rides', booking.rideId);
+            const rideDoc = await getDocs(query(collection(firestore, 'rides'), where('__name__', '==', rideDocRef.id)));
+            if (!rideDoc.empty) {
+                const rideData = { id: rideDoc.docs[0].id, ...rideDoc.docs[0].data() } as Ride;
+                return { ride: rideData, bookingId: booking.id };
+            }
+            return null;
+        });
+
+        const rideResults = (await Promise.all(ridePromises)).filter(r => r !== null) as {ride: Ride, bookingId: string}[];
+
+        setBookedRides(rideResults);
         setIsLoading(false);
     }, [firestore, userId]);
     
@@ -187,18 +244,11 @@ function BookedRidesList({ userId }: { userId: string }) {
     }, [fetchBookedRides]);
 
 
-    const handleCancelBooking = (rideId: string) => {
+    const handleCancelBooking = (bookingId: string) => {
         if (!firestore) return;
-        const rideDocRef = doc(firestore, 'rides', rideId);
-        // Find the passenger to remove
-        const passengerToRemove = bookedRides?.find(r => r.id === rideId)?.passengers.find(p => p.id === userId);
-
-        updateDocumentNonBlocking(rideDocRef, {
-            riderIds: arrayRemove(userId),
-            passengers: passengerToRemove ? arrayRemove(passengerToRemove) : undefined,
-            availableSeats: increment(1)
-        });
-        setBookedRides(prevRides => prevRides?.filter(ride => ride.id !== rideId) || null);
+        const bookingDocRef = doc(firestore, 'bookings', bookingId);
+        deleteDocumentNonBlocking(bookingDocRef);
+        setBookedRides(prevRides => prevRides?.filter(item => item.bookingId !== bookingId) || null);
         toast({
             title: "Booking Cancelled",
             description: "You have successfully cancelled your booking.",
@@ -222,7 +272,7 @@ function BookedRidesList({ userId }: { userId: string }) {
   
     return (
         <div className="space-y-4">
-        {bookedRides.map(ride => (
+        {bookedRides.map(({ride, bookingId}) => (
             <Card key={ride.id} className="p-4 flex justify-between items-center">
                 <div>
                     <p className="font-bold">{ride.origin} to {ride.destination}</p>
@@ -242,7 +292,7 @@ function BookedRidesList({ userId }: { userId: string }) {
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Keep Booking</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => handleCancelBooking(ride.id)}>
+                        <AlertDialogAction onClick={() => handleCancelBooking(bookingId)}>
                         Yes, Cancel
                         </AlertDialogAction>
                     </AlertDialogFooter>
@@ -275,7 +325,7 @@ export default function ProfilePage() {
     }
   }, [user, isUserLoading, router]);
 
-  const userDocRef = useMemo(() => {
+  const userDocRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return doc(firestore, 'users', user.uid);
   }, [firestore, user]);
@@ -296,29 +346,27 @@ export default function ProfilePage() {
     // 1. Update the user's profile
     batch.set(userDocRef, { avatarUrl: data.avatarUrl }, { merge: true });
   
-    // 2. Find all rides where the user is the offerer
+    // 2. Find all rides where the user is the offerer and update offererAvatarUrl
     const offeredRidesQuery = query(collection(firestore, "rides"), where("offererId", "==", user.uid));
     const offeredRidesSnapshot = await getDocs(offeredRidesQuery);
     offeredRidesSnapshot.forEach(rideDoc => {
       batch.update(rideDoc.ref, { offererAvatarUrl: data.avatarUrl });
     });
   
-    // 3. Find all rides where the user is a passenger
-    const bookedRidesQuery = query(collection(firestore, "rides"), where("riderIds", "array-contains", user.uid));
-    const bookedRidesSnapshot = await getDocs(bookedRidesQuery);
-    bookedRidesSnapshot.forEach(rideDoc => {
-      const rideData = rideDoc.data() as Ride;
-      const updatedPassengers = rideData.passengers.map(p => 
-        p.id === user.uid ? { ...p, avatarUrl: data.avatarUrl } : p
-      );
-      batch.update(rideDoc.ref, { passengers: updatedPassengers });
+    // 3. Find all bookings by the user and update the passengerInfo
+    const userBookingsQuery = query(collection(firestore, "bookings"), where("userId", "==", user.uid));
+    const userBookingsSnapshot = await getDocs(userBookingsQuery);
+    userBookingsSnapshot.forEach(bookingDoc => {
+        const bookingData = bookingDoc.data() as Booking;
+        const updatedPassengerInfo = { ...bookingData.passengerInfo, avatarUrl: data.avatarUrl };
+        batch.update(bookingDoc.ref, { passengerInfo: updatedPassengerInfo });
     });
   
     try {
       await batch.commit();
       toast({
         title: "Profile Updated",
-        description: "Your profile picture has been updated across all your rides.",
+        description: "Your profile picture has been updated across all your rides and bookings.",
       });
       setProfileDialogOpen(false);
     } catch (error) {

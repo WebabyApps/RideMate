@@ -119,8 +119,6 @@ export default function OfferRidePage() {
       petsAllowed: data.petsAllowed,
       largeBagsAllowed: data.largeBagsAllowed,
       createdAt: serverTimestamp(),
-      riderIds: [],
-      passengers: [],
     });
 
     toast({

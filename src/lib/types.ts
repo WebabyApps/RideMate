@@ -28,11 +28,16 @@ export type Ride = {
   availableSeats: number;
   totalSeats: number;
   cost: number;
-  riderIds: string[];
-  passengers: Passenger[];
   petsAllowed: boolean;
   largeBagsAllowed: boolean;
   createdAt: Timestamp;
+};
+
+export type Booking = {
+    id: string;
+    rideId: string;
+    userId: string;
+    passengerInfo: Passenger;
 };
 
 export type Message = {
