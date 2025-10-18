@@ -10,9 +10,18 @@ export type UserProfile = {
   rating: number;
 };
 
+export type Passenger = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  avatarUrl: string;
+}
+
 export type Ride = {
   id: string;
   offererId: string;
+  offererName: string;
+  offererAvatarUrl: string;
   origin: string;
   destination: string;
   departureTime: Timestamp;
@@ -20,6 +29,7 @@ export type Ride = {
   totalSeats: number;
   cost: number;
   riderIds: string[];
+  passengers: Passenger[];
   petsAllowed: boolean;
   largeBagsAllowed: boolean;
   createdAt: Timestamp;

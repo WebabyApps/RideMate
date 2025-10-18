@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useMemo, useCallback } from "react";
-import { collection, serverTimestamp } from 'firebase/firestore';
+import { collection, serverTimestamp, doc } from 'firebase/firestore';
 
 import { Button } from "@/components/ui/button";
 import {
@@ -24,10 +24,12 @@ import { cn } from "@/lib/utils";
 import { CalendarIcon } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
-import { useFirestore, useUser, addDocumentNonBlocking } from "@/firebase";
+import { useFirestore, useUser, addDocumentNonBlocking, useMemoFirebase } from "@/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { WaypointMap } from "@/components/waypoint-map";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useDoc } from "@/firebase/firestore/use-doc";
+import type { UserProfile } from "@/lib/types";
 
 const rideSchema = z.object({
   origin: z.string().min(3, "Origin must be at least 3 characters long."),
@@ -46,6 +48,13 @@ export default function OfferRidePage() {
   const firestore = useFirestore();
   const { toast } = useToast();
   const [activeWaypointInput, setActiveWaypointInput] = useState<string | null>(null);
+
+  const userDocRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, 'users', user.uid);
+  }, [firestore, user]);
+
+  const { data: userProfile } = useDoc<UserProfile>(userDocRef);
 
   const form = useForm<z.infer<typeof rideSchema>>({
     resolver: zodResolver(rideSchema),
@@ -83,11 +92,11 @@ export default function OfferRidePage() {
   }, [user, isUserLoading, router]);
 
   function onSubmit(data: z.infer<typeof rideSchema>) {
-    if (!user) {
+    if (!user || !userProfile) {
       toast({
         variant: "destructive",
         title: "Authentication Error",
-        description: "You must be logged in to offer a ride.",
+        description: "You must be logged in and have a profile to offer a ride.",
       });
       return;
     }
@@ -99,6 +108,8 @@ export default function OfferRidePage() {
     const ridesColRef = collection(firestore, 'rides');
     addDocumentNonBlocking(ridesColRef, {
       offererId: user.uid,
+      offererName: `${userProfile.firstName} ${userProfile.lastName}`,
+      offererAvatarUrl: userProfile.avatarUrl || '',
       origin: data.origin,
       destination: data.destination,
       departureTime: departureDateTime,
@@ -109,13 +120,14 @@ export default function OfferRidePage() {
       largeBagsAllowed: data.largeBagsAllowed,
       createdAt: serverTimestamp(),
       riderIds: [],
+      passengers: [],
     });
 
     toast({
       title: "Ride Offered!",
       description: "Your ride has been successfully posted.",
     });
-    form.reset();
+    router.push('/profile');
   }
   
   if (isUserLoading || !user) {
