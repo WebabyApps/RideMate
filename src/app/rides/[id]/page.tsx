@@ -5,10 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { StarRating } from "@/components/star-rating";
-import { Calendar, Clock, Users, DollarSign, MessageSquare, AlertCircle, Dog, Briefcase } from "lucide-react";
+import { Calendar, Clock, Users, DollarSign, MessageSquare, AlertCircle, Dog, Briefcase, User } from "lucide-react";
 import { format } from 'date-fns';
-import { useUser, useFirestore, updateDocumentNonBlocking, useMemoFirebase } from "@/firebase";
-import { doc, arrayUnion } from "firebase/firestore";
+import { useUser, useFirestore, updateDocumentNonBlocking, useMemoFirebase, useCollection } from "@/firebase";
+import { doc, arrayUnion, collection, query, where } from "firebase/firestore";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
 import { RideMap } from "@/components/ride-map";
@@ -75,6 +75,35 @@ function DriverInfo({ driverId }: { driverId: string | undefined }) {
   );
 }
 
+function PassengerList({ riderIds }: { riderIds: string[] | undefined }) {
+    const firestore = useFirestore();
+    const riderProfilesQuery = useMemoFirebase(() => {
+        if (!firestore || !riderIds || riderIds.length === 0) return null;
+        return query(collection(firestore, 'users'), where('id', 'in', riderIds));
+    }, [firestore, riderIds]);
+
+    const { data: riderProfiles, isLoading } = useCollection<UserProfile>(riderProfilesQuery);
+
+    if (isLoading) return <div className="flex gap-2 items-center"><Skeleton className="h-8 w-8 rounded-full" /><Skeleton className="h-5 w-24" /></div>;
+
+    if (!riderProfiles || riderProfiles.length === 0) {
+        return <p className="text-sm text-muted-foreground">No passengers have booked yet.</p>;
+    }
+
+    return (
+      <div className="flex flex-wrap gap-4">
+        {riderProfiles.map(p => (
+            <div key={p.id} className="flex items-center gap-2 text-sm" title={`${p.firstName} ${p.lastName}`}>
+                <Avatar className="h-8 w-8">
+                    <AvatarImage src={p.avatarUrl} alt={p.firstName} />
+                    <AvatarFallback>{p.firstName.charAt(0)}</AvatarFallback>
+                </Avatar>
+                <span className="font-medium">{p.firstName}</span>
+            </div>
+        ))}
+      </div>
+    );
+}
 
 export default function RideDetailPage() {
   const { user } = useUser();
@@ -160,7 +189,7 @@ export default function RideDetailPage() {
   
   return (
     <div className="container mx-auto max-w-5xl px-4 md:px-6 py-8">
-      <div className="grid md:grid-cols-3 gap-8">
+      <div className="grid md:grid-cols-3 gap-8 items-start">
         <div className="md:col-span-2 space-y-8">
           <Card>
             <CardHeader>
@@ -213,18 +242,14 @@ export default function RideDetailPage() {
           </Card>
 
         </div>
-        <div className="space-y-6">
+        <div className="space-y-6 sticky top-24">
           {ride.offererId && <DriverInfo driverId={ride.offererId} />}
           <Card>
             <CardHeader>
-              <CardTitle className="font-headline">Passengers</CardTitle>
+              <CardTitle className="font-headline flex items-center gap-2"><Users className="h-5 w-5"/>Passengers</CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
-              {ride.riderIds && ride.riderIds.length > 0 ? (
-                <p>{ride.riderIds.length} passenger(s) booked.</p>
-              ) : (
-                <p className="text-sm text-muted-foreground">No passengers have booked yet.</p>
-              )}
+              <PassengerList riderIds={ride.riderIds} />
             </CardContent>
           </Card>
            <div className="sticky top-24">

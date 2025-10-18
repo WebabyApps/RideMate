@@ -143,6 +143,46 @@
         "ratedRideId",
         "ratingValue"
       ]
+    },
+    "Message": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Message",
+      "type": "object",
+      "description": "Represents a message sent between users regarding a specific ride.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the message."
+        },
+        "rideId": {
+          "type": "string",
+          "description": "Reference to the Ride this message is about."
+        },
+        "senderId": {
+          "type": "string",
+          "description": "Reference to the User who sent the message."
+        },
+        "receiverId": {
+          "type": "string",
+          "description": "Reference to the User who should receive the message."
+        },
+        "text": {
+          "type": "string",
+          "description": "The content of the message."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "rideId",
+        "senderId",
+        "receiverId",
+        "text",
+        "createdAt"
+      ]
     }
   },
   "auth": {
@@ -172,6 +212,13 @@
           "$ref": "#/entities/Rating"
         },
         "description": "Stores ratings for a specific ride."
+      },
+      {
+        "path": "/rides/{rideId}/messages",
+        "schema": {
+          "$ref": "#/entities/Message"
+        },
+        "description": "Stores messages related to a specific ride."
       }
     ]
   }

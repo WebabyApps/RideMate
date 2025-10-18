@@ -25,6 +25,16 @@ export type Ride = {
   createdAt: Timestamp;
 };
 
+export type Message = {
+  id: string;
+  rideId: string;
+  senderId: string;
+  receiverId: string;
+  text: string;
+  createdAt: Timestamp;
+};
+
+
 // --- AI Flow Schemas ---
 export const OptimizeCarpoolRouteInputSchema = z.object({
   currentRoute: z
