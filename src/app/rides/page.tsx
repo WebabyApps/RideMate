@@ -17,37 +17,9 @@ import { useState, useMemo, useEffect, useCallback } from "react";
 import type { Ride } from "@/lib/types";
 import { useFirestore } from "@/firebase";
 import { collection, query, getDocs, orderBy, where, Timestamp } from "firebase/firestore";
+import { RideList } from "@/components/rides/ride-list";
 
 export const dynamic = 'force-dynamic';
-
-function RideList({ rides, isLoading }: { rides: Ride[] | null, isLoading: boolean }) {
-  if (isLoading) {
-    return (
-      <>
-        <Skeleton className="h-96 w-full" />
-        <Skeleton className="h-96 w-full" />
-        <Skeleton className="h-96 w-full" />
-      </>
-    );
-  }
-
-  if (!rides || rides.length === 0) {
-    return (
-      <div className="col-span-full text-center py-10 border-2 border-dashed rounded-lg">
-        <p className="text-muted-foreground">No rides available for the selected criteria. Check back soon!</p>
-      </div>
-    );
-  }
-
-  return (
-    <>
-      {rides.map(ride => (
-        <RideCard key={ride.id} ride={ride} />
-      ))}
-    </>
-  );
-}
-
 
 export default function RidesPage() {
   const firestore = useFirestore();
