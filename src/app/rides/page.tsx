@@ -66,7 +66,6 @@ export default function RidesPage() {
         const ridesQuery = query(
           collection(firestore, 'rides'),
           where('departureTime', '>', Timestamp.now()),
-          orderBy('departureTime', 'asc')
         );
         const querySnapshot = await getDocs(ridesQuery);
         const ridesData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Ride));
