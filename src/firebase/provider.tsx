@@ -4,7 +4,7 @@ import React, { createContext, useContext, ReactNode, useMemo, useState, useEffe
 import { FirebaseApp } from 'firebase/app';
 import { Firestore } from 'firebase/firestore';
 import { Auth, User, onAuthStateChanged } from 'firebase/auth';
-import { auth as singletonAuth, firestore as singletonFirestore, firebaseApp as singletonApp } from '@/firebase';
+import { initializeFirebase as getServices } from '@/firebase'; // Renamed for clarity
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener'
 
 // --- Context Definitions ---
@@ -28,13 +28,12 @@ const UserAuthStateContext = createContext<UserAuthStateContextState | undefined
 
 // --- Provider Component ---
 
-/**
- * FirebaseProvider manages and provides Firebase services and user authentication state.
- * It uses the singleton instances of services initialized outside of the React tree for stability.
- */
 export const FirebaseProvider: React.FC<{children: ReactNode}> = ({ children }) => {
+  // The services are now retrieved from the memoized function call
+  const services = useMemo(() => getServices(), []);
+
   const [userAuthState, setUserAuthState] = useState<UserAuthStateContextState>({
-    user: singletonAuth.currentUser, 
+    user: services.auth.currentUser, 
     isUserLoading: true,
     userError: null,
   });
@@ -42,7 +41,7 @@ export const FirebaseProvider: React.FC<{children: ReactNode}> = ({ children }) 
   // Set up the authentication state listener. This runs only once.
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(
-      singletonAuth,
+      services.auth,
       (firebaseUser) => {
         setUserAuthState({ user: firebaseUser, isUserLoading: false, userError: null });
       },
@@ -54,17 +53,10 @@ export const FirebaseProvider: React.FC<{children: ReactNode}> = ({ children }) 
     
     // Cleanup listener on unmount
     return () => unsubscribe(); 
-  }, []);
-
-  // The services context value is memoized with the singleton instances and NEVER changes.
-  const servicesValue = useMemo((): FirebaseServicesContextState => ({
-    firebaseApp: singletonApp,
-    firestore: singletonFirestore,
-    auth: singletonAuth,
-  }), []);
+  }, [services.auth]);
 
   return (
-    <FirebaseServicesContext.Provider value={servicesValue}>
+    <FirebaseServicesContext.Provider value={services}>
       <UserAuthStateContext.Provider value={userAuthState}>
         <FirebaseErrorListener />
         {children}
