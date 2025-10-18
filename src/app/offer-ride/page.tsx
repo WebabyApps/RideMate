@@ -110,6 +110,7 @@ export default function OfferRidePage() {
       offererId: user.uid,
       offererName: `${userProfile.firstName} ${userProfile.lastName}`,
       offererAvatarUrl: userProfile.avatarUrl || '',
+      offererRating: userProfile.rating || 0,
       origin: data.origin,
       destination: data.destination,
       departureTime: departureDateTime,

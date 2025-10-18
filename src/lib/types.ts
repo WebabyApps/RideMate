@@ -22,6 +22,7 @@ export type Ride = {
   offererId: string;
   offererName: string;
   offererAvatarUrl: string;
+  offererRating: number;
   origin: string;
   destination: string;
   departureTime: Timestamp;

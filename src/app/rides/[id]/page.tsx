@@ -12,7 +12,7 @@ import { doc, collection, query, where, getDocs } from "firebase/firestore";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
 import { RideMap } from "@/components/ride-map";
-import type { Ride, UserProfile, Booking } from '@/lib/types';
+import type { Ride, Booking } from '@/lib/types';
 import Link from 'next/link';
 import { useDoc } from "@/firebase/firestore/use-doc";
 import {
@@ -48,18 +48,11 @@ export default function RideDetailPage() {
 
   const { data: ride, isLoading: isRideLoading } = useDoc<Ride>(rideDocRef);
 
-  const driverDocRef = useMemoFirebase(() => {
-    if (!firestore || !ride?.offererId) return null;
-    return doc(firestore, 'users', ride.offererId);
-  }, [firestore, ride]);
-
-  const { data: driverProfile } = useDoc<UserProfile>(driverDocRef);
-
   const userProfileDocRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return doc(firestore, 'users', user.uid);
   }, [firestore, user]);
-  const { data: userProfile } = useDoc<UserProfile>(userProfileDocRef);
+  const { data: userProfile } = useDoc(userProfileDocRef);
   
   const fetchBookings = useCallback(async () => {
     if (!firestore || !rideId) return;
@@ -276,7 +269,7 @@ export default function RideDetailPage() {
                     </Avatar>
                     <div className="text-center">
                     <p className="font-bold text-xl">{ride.offererName || 'Driver'}</p>
-                    <StarRating rating={driverProfile?.rating || 0} className="justify-center mt-1" />
+                    <StarRating rating={ride.offererRating || 0} className="justify-center mt-1" />
                     </div>
                     <Button variant="outline" className="w-full">
                     <MessageSquare className="w-4 h-4 mr-2" /> Message {ride.offererName ? ride.offererName.split(' ')[0] : 'Driver'}
