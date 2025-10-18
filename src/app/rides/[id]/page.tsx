@@ -5,10 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { StarRating } from "@/components/star-rating";
-import { Calendar, Clock, Users, DollarSign, MessageSquare, AlertCircle, Dog, Briefcase, User } from "lucide-react";
+import { Calendar, Clock, Users, DollarSign, MessageSquare, AlertCircle, Dog, Briefcase } from "lucide-react";
 import { format } from 'date-fns';
-import { useUser, useFirestore, updateDocumentNonBlocking, addDocumentNonBlocking, useMemoFirebase, useCollection } from "@/firebase";
-import { doc, arrayUnion, arrayRemove, increment, collection, query, where, getDocs, writeBatch } from "firebase/firestore";
+import { useUser, useFirestore, addDocumentNonBlocking, useMemoFirebase, useCollection } from "@/firebase";
+import { doc, collection, query, where, getDocs, writeBatch, deleteDoc } from "firebase/firestore";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
 import { RideMap } from "@/components/ride-map";
@@ -26,7 +26,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { useEffect } from "react";
+import { useEffect, useState, useCallback } from "react";
+import { deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 
 function DriverInfo({ offererId }: { offererId: string }) {
   const firestore = useFirestore();
