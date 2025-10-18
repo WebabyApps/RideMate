@@ -103,11 +103,18 @@ function OfferedRidesList({ userId }: { userId: string }) {
             setIsLoading(true);
             const ridesQuery = query(
               collection(firestore, 'rides'), 
-              where('offererId', '==', userId),
-              orderBy('departureTime', 'desc')
+              where('offererId', '==', userId)
             );
             const snapshot = await getDocs(ridesQuery);
             const rides = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Ride));
+            
+            // Sort rides by departure time on the client-side
+            rides.sort((a, b) => {
+              const timeA = a.departureTime?.toDate?.().getTime() || 0;
+              const timeB = b.departureTime?.toDate?.().getTime() || 0;
+              return timeB - timeA; // Descending
+            });
+
             setUserRides(rides);
             setIsLoading(false);
         };
