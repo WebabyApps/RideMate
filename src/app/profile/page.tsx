@@ -204,17 +204,23 @@ function OfferedRidesList({ userId }: { userId: string }) {
 function BookedRidesList({ userId }: { userId: string }) {
     const firestore = useFirestore();
     const { toast } = useToast();
+
+    // Use a specific query for the user's bookings
+    const userBookingsQuery = useMemoFirebase(() => {
+        if (!firestore || !userId) return null;
+        return query(collection(firestore, 'bookings'), where('userId', '==', userId));
+    }, [firestore, userId]);
+    
+    const { data: userBookings, isLoading: isLoadingBookings } = useCollection<Booking>(userBookingsQuery);
+
+    // This state will hold the merged ride and booking data
     const [bookedRides, setBookedRides] = useState<{ride: Ride, bookingId: string}[] | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
-    const fetchBookedRides = useCallback(async () => {
-        if (!firestore || !userId) return;
-        setIsLoading(true);
+    const fetchRideDetails = useCallback(async () => {
+        if (!userBookings || !firestore) return;
 
-        // 1. Find user's bookings
-        const bookingsQuery = query(collection(firestore, 'bookings'), where('userId', '==', userId));
-        const bookingsSnapshot = await getDocs(bookingsQuery);
-        const userBookings = bookingsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Booking));
+        setIsLoading(true);
 
         if (userBookings.length === 0) {
             setBookedRides([]);
@@ -222,40 +228,40 @@ function BookedRidesList({ userId }: { userId: string }) {
             return;
         }
 
-        // 2. Fetch the ride details for each booking
         const ridePromises = userBookings.map(async (booking) => {
             const rideDocRef = doc(firestore, 'rides', booking.rideId);
-            const rideDoc = await getDocs(query(collection(firestore, 'rides'), where('__name__', '==', rideDocRef.id)));
-            if (!rideDoc.empty) {
-                const rideData = { id: rideDoc.docs[0].id, ...rideDoc.docs[0].data() } as Ride;
+            const rideDocSnapshot = await getDocs(query(collection(firestore, 'rides'), where('__name__', '==', rideDocRef.id)));
+            if (!rideDocSnapshot.empty) {
+                const rideData = { id: rideDocSnapshot.docs[0].id, ...rideDocSnapshot.docs[0].data() } as Ride;
                 return { ride: rideData, bookingId: booking.id };
             }
             return null;
         });
 
         const rideResults = (await Promise.all(ridePromises)).filter(r => r !== null) as {ride: Ride, bookingId: string}[];
-
+        
         setBookedRides(rideResults);
         setIsLoading(false);
-    }, [firestore, userId]);
+
+    }, [userBookings, firestore]);
     
     useEffect(() => {
-        fetchBookedRides();
-    }, [fetchBookedRides]);
+        fetchRideDetails();
+    }, [fetchRideDetails]);
 
 
     const handleCancelBooking = (bookingId: string) => {
         if (!firestore) return;
         const bookingDocRef = doc(firestore, 'bookings', bookingId);
         deleteDocumentNonBlocking(bookingDocRef);
-        setBookedRides(prevRides => prevRides?.filter(item => item.bookingId !== bookingId) || null);
+        // The list will automatically update because we're subscribed to userBookings
         toast({
             title: "Booking Cancelled",
             description: "You have successfully cancelled your booking.",
         });
     };
-
-    if (isLoading) {
+    
+    if (isLoadingBookings || isLoading) {
         return <Skeleton className="h-40 w-full" />;
     }
 
