@@ -16,7 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useState, useMemo } from "react";
 import type { Ride } from "@/lib/types";
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
-import { collection, query, where, orderBy, Query } from "firebase/firestore";
+import { collection, query, orderBy } from "firebase/firestore";
 
 export const dynamic = 'force-dynamic';
 
@@ -158,4 +158,3 @@ export default function RidesPage() {
     </div>
   );
 }
-
