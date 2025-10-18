@@ -1,9 +1,9 @@
 'use client';
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { useUser, useFirestore, deleteDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase";
-import { collection, query, where, doc, arrayRemove, increment, getDocs } from 'firebase/firestore';
+import { useEffect, useState, useMemo } from "react";
+import { useUser, useFirestore, deleteDocumentNonBlocking, updateDocumentNonBlocking, setDocumentNonBlocking } from "@/firebase";
+import { collection, query, where, doc, arrayRemove, increment, getDocs, orderBy } from 'firebase/firestore';
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -101,11 +101,13 @@ function OfferedRidesList({ userId }: { userId: string }) {
 
         const fetchRides = async () => {
             setIsLoading(true);
-            const ridesQuery = query(collection(firestore, 'rides'), where('offererId', '==', userId));
+            const ridesQuery = query(
+              collection(firestore, 'rides'), 
+              where('offererId', '==', userId),
+              orderBy('departureTime', 'desc')
+            );
             const snapshot = await getDocs(ridesQuery);
             const rides = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Ride));
-            // Manual sort as Firestore doesn't allow multiple inequalities
-            rides.sort((a,b) => b.createdAt.toMillis() - a.createdAt.toMillis());
             setUserRides(rides);
             setIsLoading(false);
         };
@@ -429,5 +431,3 @@ export default function ProfilePage() {
     </div>
   );
 }
-
-    
