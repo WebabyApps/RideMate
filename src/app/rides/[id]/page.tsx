@@ -12,7 +12,7 @@ import { doc, collection, query, where, getDocs } from "firebase/firestore";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
 import { RideMap } from "@/components/ride-map";
-import type { Ride, Booking } from '@/lib/types';
+import type { Ride, Booking, UserProfile } from '@/lib/types';
 import Link from 'next/link';
 import { useDoc } from "@/firebase/firestore/use-doc";
 import {
@@ -52,7 +52,7 @@ export default function RideDetailPage() {
     if (!firestore || !user) return null;
     return doc(firestore, 'users', user.uid);
   }, [firestore, user]);
-  const { data: userProfile } = useDoc(userProfileDocRef);
+  const { data: userProfile } = useDoc<UserProfile>(userProfileDocRef);
   
   const fetchBookings = useCallback(async () => {
     if (!firestore || !rideId) return;
@@ -73,7 +73,7 @@ export default function RideDetailPage() {
     } finally {
         setAreBookingsLoading(false);
     }
-  }, [firestore, rideId]);
+  }, [firestore, rideId, toast]);
 
   useEffect(() => {
       fetchBookings();
