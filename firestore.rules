@@ -1,198 +1,150 @@
 /**
-  * @description This ruleset enforces a strict user-ownership model for user profiles and uses shared access control for rides and associated chat messages. Ratings are publicly readable but only modifiable by authorized users (the rater).
-  * @dataStructure
-  *   - `/users/{userId}`: Stores user profile data, accessible only to the user themselves.
-  *   - `/rides/{rideId}`: Stores ride information, with access controlled via the `offererId` and `riderIds` fields.
-  *   - `/ratings/{ratingId}`: Stores rating information, publicly readable but writable only by the rater.
-  *   - `/rides/{rideId}/messages/{messageId}`: Stores chat messages for a ride, accessible to users participating in the ride.
-  * @keySecurityDecisions
-  *   - User profiles are strictly private and only accessible to the owner.
-  *   - Rides are shared resources; access is controlled through the `offererId` and `riderIds` fields.
-  *   - Ratings are publicly readable to encourage transparency, but only the rater can create them.
-  *   - Listing of all users is disallowed to protect user privacy.
-  * @denormalizationForAuthorization
-  *   - `Ride` documents include `offererId` to quickly identify the ride creator.
-  *   - `Ride` documents include `riderIds` to track users participating in the ride.
-  *   - `Rating` documents include both `raterId` and `ratedUserId` for authorization purposes.
-  * @structuralSegregation User profiles are stored in a dedicated `/users/{userId}` collection to enforce strict ownership.
-  */
- 
-
- rules_version = '2';
- service cloud.firestore {
+ * @file Firebase Security Rules for RideMate
+ *
+ * @description This ruleset enforces a user-ownership model for user profiles and
+ * restricts access to rides and ratings based on user roles and ride participation.
+ * It prioritizes authorization independence by denormalizing relevant data into
+ * documents, avoiding the need for `get()` calls in security rules.
+ *
+ * @dataStructure
+ * - /users/{userId}: Stores user profile data, accessible only to the user.
+ * - /rides/{rideId}: Stores ride information, with access control based on the ride offerer and riders.
+ * - /ratings/{ratingId}: Stores rating information, with access control based on the rater and rated user.
+ * - /rides/{rideId}/messages/{messageId}: Stores chat messages associated with a specific ride, accessible to ride participants.
+ *
+ * @keySecurityDecisions
+ * - User profiles are strictly private and only accessible to the owning user.
+ * - Rides are publicly readable, but creating, updating, and deleting rides are restricted to the ride offerer.
+ * - Ratings are publicly readable, but creating, updating, and deleting ratings are restricted to the rater.
+ * - Chat messages within a ride are only accessible to users participating in that ride.
+ * - Listing rides and ratings is allowed for all users.
+ * - Listing chat messages is allowed only for participants of the ride.
+ *
+ * @denormalizationForAuthorization
+ * - Ride documents include `offererId` to identify the ride creator, enabling rules to check ownership without `get()` calls.
+ * - Rating documents include both `raterId` and `ratedUserId`, allowing rules to check who created the rating and who is being rated, without external `get()` calls.
+ *
+ * @structuralSegregation
+ * - User profile data is stored under `/users/{userId}`, ensuring path-based ownership.
+ * - Chat messages are stored as subcollections of rides, contextually linking them to the ride and simplifying access control.
+ */
+rules_version = '2';
+service cloud.firestore {
   match /databases/{database}/documents {
- 
 
-   /**
-    * @description Controls access to user profile documents. Only the user themselves can read, update, or delete their profile.
-    * @path /users/{userId}
-    * @allow (create) User with ID 'user_abc' can create their own profile document.
-    *     request.auth.uid == 'user_abc' && request.resource.data.id == 'user_abc'
-    * @allow (get) User with ID 'user_abc' can read their own profile document.
-    *     request.auth.uid == 'user_abc'
-    * @allow (update) User with ID 'user_abc' can update their own profile document.
-    *     request.auth.uid == 'user_abc'
-    * @allow (delete) User with ID 'user_abc' can delete their own profile document.
-    *     request.auth.uid == 'user_abc'
-    * @deny (create) User with ID 'user_xyz' cannot create a profile document for user 'user_abc'.
-    *     request.auth.uid == 'user_xyz' && request.resource.data.id == 'user_abc'
-    * @deny (get) User with ID 'user_xyz' cannot read the profile document of user 'user_abc'.
-    *     request.auth.uid == 'user_xyz'
-    * @deny (update) User with ID 'user_xyz' cannot update the profile document of user 'user_abc'.
-    *     request.auth.uid == 'user_xyz'
-    * @deny (delete) User with ID 'user_xyz' cannot delete the profile document of user 'user_abc'.
-    *     request.auth.uid == 'user_xyz'
-    * @principle Enforces document ownership for writes and restricts access to a user's own data tree.
-    */
-   match /users/{userId} {
-    function isOwner(userId) {
-     return request.auth.uid == userId;
+    /**
+     * @description Controls access to user profile documents. Only the authenticated user can read or write their own profile.
+     * @path /users/{userId}
+     * @allow (create) User with UID 'user123' can create their profile if request.auth.uid == 'user123' and request.resource.data.id == 'user123'.
+     * @allow (get, update, delete) User with UID 'user123' can read, update, or delete their profile if request.auth.uid == 'user123'.
+     * @deny (create) User with UID 'user456' cannot create a profile with ID 'user123'.
+     * @deny (get, update, delete) User with UID 'user456' cannot read, update, or delete profile with ID 'user123'.
+     * @principle Enforces document ownership for reads and writes.
+     */
+    match /users/{userId} {
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.id == userId;
+      allow update: if isSignedIn() && isOwner(userId) && resource.data.id == userId;
+      allow delete: if isSignedIn() && isOwner(userId) && resource.data.id == userId;
     }
- 
 
-    function isExistingOwner(userId) {
-     return isOwner(userId) && exists(/databases/$(database)/documents/users/$(userId));
+    /**
+     * @description Controls access to ride documents. Anyone can read ride documents, but only the ride offerer can create, update, or delete them.
+     * @path /rides/{rideId}
+     * @allow (get, list) Any user can read and list ride documents.
+     * @allow (create) User with UID 'user123' can create a ride document if request.auth.uid == request.resource.data.offererId.
+     * @allow (update, delete) User with UID 'user123' can update or delete a ride document if request.auth.uid == resource.data.offererId.
+     * @deny (create) User with UID 'user456' cannot create a ride document if request.auth.uid != request.resource.data.offererId.
+     * @deny (update, delete) User with UID 'user456' cannot update or delete a ride document if request.auth.uid != resource.data.offererId.
+     * @principle Allows public read access with owner-only writes.
+     */
+    match /rides/{rideId} {
+      function isOwner(offererId) {
+        return request.auth.uid == offererId;
+      }
+
+       function isExistingOwner(offererId) {
+        return isOwner(offererId) && resource != null;
+      }
+
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      allow get, list: if true;
+      allow create: if isSignedIn() && isOwner(request.resource.data.offererId);
+      allow update: if isSignedIn() && isExistingOwner(resource.data.offererId);
+      allow delete: if isSignedIn() && isExistingOwner(resource.data.offererId);
     }
- 
 
-    allow get: if isOwner(userId);
-    allow list: if false; // Listing all users is not permitted.
-    allow create: if isOwner(userId) && request.resource.data.id == request.auth.uid;
-    allow update: if isExistingOwner(userId);
-    allow delete: if isExistingOwner(userId);
-   }
- 
+    /**
+     * @description Controls access to rating documents. Anyone can read rating documents, but only the rater can create, update, or delete them.
+     * @path /ratings/{ratingId}
+     * @allow (get, list) Any user can read and list rating documents.
+     * @allow (create) User with UID 'user123' can create a rating document if request.auth.uid == request.resource.data.raterId.
+     * @allow (update, delete) User with UID 'user123' can update or delete a rating document if request.auth.uid == resource.data.raterId.
+     * @deny (create) User with UID 'user456' cannot create a rating document if request.auth.uid != request.resource.data.raterId.
+     * @deny (update, delete) User with UID 'user456' cannot update or delete a rating document if request.auth.uid != resource.data.raterId.
+     * @principle Allows public read access with owner-only writes.
+     */
+    match /ratings/{ratingId} {
+      function isOwner(raterId) {
+        return request.auth.uid == raterId;
+      }
 
-   /**
-    * @description Controls access to ride documents. The ride offerer can create, update, and delete rides. Any authenticated user can read/list rides.
-    * @path /rides/{rideId}
-    * @allow (create) User with ID 'user_abc' can create a ride with themself as the offerer.
-    *     request.auth.uid == 'user_abc' && request.resource.data.offererId == 'user_abc'
-    * @allow (get) Any authenticated user can read a ride document.
-    *     request.auth.uid != null
-    * @allow (list) Any authenticated user can list ride documents.
-    *     request.auth.uid != null
-    * @allow (update) User with ID 'user_abc' can update a ride where they are the offerer.
-    *     request.auth.uid == 'user_abc' && resource.data.offererId == 'user_abc'
-    * @allow (delete) User with ID 'user_abc' can delete a ride where they are the offerer.
-    *     request.auth.uid == 'user_abc' && resource.data.offererId == 'user_abc'
-    * @deny (create) User with ID 'user_xyz' cannot create a ride with 'user_abc' as the offerer.
-    *     request.auth.uid == 'user_xyz' && request.resource.data.offererId == 'user_abc'
-    * @deny (update) User with ID 'user_xyz' cannot update a ride where 'user_abc' is the offerer.
-    *     request.auth.uid == 'user_xyz' && resource.data.offererId == 'user_abc'
-    * @deny (delete) User with ID 'user_xyz' cannot delete a ride where 'user_abc' is the offerer.
-    *     request.auth.uid == 'user_xyz' && resource.data.offererId == 'user_abc'
-    * @principle Enforces owner-only writes and public reads for ride information.
-    */
-   match /rides/{rideId} {
-    function isSignedIn() {
-     return request.auth != null;
+      function isExistingOwner(raterId) {
+        return isOwner(raterId) && resource != null;
+      }
+
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      allow get, list: if true;
+      allow create: if isSignedIn() && isOwner(request.resource.data.raterId);
+      allow update: if isSignedIn() && isExistingOwner(resource.data.raterId);
+      allow delete: if isSignedIn() && isExistingOwner(resource.data.raterId);
     }
- 
 
-    function isOfferer(offererId) {
-     return request.auth.uid == offererId;
+    /**
+     * @description Controls access to chat messages within a specific ride. Only users participating in the ride can read or write messages.
+     * @path /rides/{rideId}/messages/{messageId}
+     * @allow (get, list) User with UID 'user123' can read or list chat messages for ride 'ride456' if 'user123' is a rider in 'ride456'.
+     * @allow (create) User with UID 'user123' can create a chat message for ride 'ride456' if 'user123' is a rider in 'ride456' and request.resource.data.senderId == 'user123'.
+     * @allow (update, delete) User with UID 'user123' can update or delete a chat message for ride 'ride456' if 'user123' is the sender of the message and a rider in 'ride456'.
+     * @deny (get, list, create, update, delete) User with UID 'user456' cannot access chat messages for ride 'ride456' if 'user456' is not a rider in 'ride456'.
+     * @principle Restricts access to chat messages to ride participants only.
+     */
+    match /rides/{rideId}/messages/{messageId} {
+      function isParticipant(rideId) {
+        return get(/databases/$(database)/documents/rides/$(rideId)).data.riderIds.hasAny([request.auth.uid]);
+      }
+
+      function isOwner(senderId) {
+        return request.auth.uid == senderId;
+      }
+
+      function isExistingOwner(senderId) {
+        return isOwner(senderId) && resource != null;
+      }
+      
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      allow get, list: if isSignedIn() && isParticipant(rideId);
+      allow create: if isSignedIn() && isParticipant(rideId) && isOwner(request.resource.data.senderId);
+      allow update: if isSignedIn() && isParticipant(rideId) && isExistingOwner(resource.data.senderId);
+      allow delete: if isSignedIn() && isParticipant(rideId) && isExistingOwner(resource.data.senderId);
     }
- 
-
-    function isExistingOfferer(rideId, offererId) {
-     return isSignedIn() && isOfferer(offererId) && exists(/databases/$(database)/documents/rides/$(rideId));
-    }
- 
-
-    allow get, list: if isSignedIn();
-    allow create: if isSignedIn() && request.resource.data.offererId == request.auth.uid;
-    allow update: if isExistingOfferer(rideId, resource.data.offererId);
-    allow delete: if isExistingOfferer(rideId, resource.data.offererId);
-   }
- 
-
-   /**
-    * @description Controls access to rating documents. Any authenticated user can read a rating, but only the rater can create, update, or delete it.
-    * @path /ratings/{ratingId}
-    * @allow (create) User with ID 'user_abc' can create a rating with themself as the rater.
-    *     request.auth.uid == 'user_abc' && request.resource.data.raterId == 'user_abc'
-    * @allow (get) Any authenticated user can read a rating document.
-    *     request.auth.uid != null
-    * @allow (list) Any authenticated user can list rating documents.
-    *     request.auth.uid != null
-    * @allow (update) User with ID 'user_abc' can update a rating where they are the rater.
-    *     request.auth.uid == 'user_abc' && resource.data.raterId == 'user_abc'
-    * @allow (delete) User with ID 'user_abc' can delete a rating where they are the rater.
-    *     request.auth.uid == 'user_abc' && resource.data.raterId == 'user_abc'
-    * @deny (create) User with ID 'user_xyz' cannot create a rating with 'user_abc' as the rater.
-    *     request.auth.uid == 'user_xyz' && request.resource.data.raterId == 'user_abc'
-    * @deny (update) User with ID 'user_xyz' cannot update a rating where 'user_abc' is the rater.
-    *     request.auth.uid == 'user_xyz' && resource.data.raterId == 'user_abc'
-    * @deny (delete) User with ID 'user_xyz' cannot delete a rating where 'user_abc' is the rater.
-    *     request.auth.uid == 'user_xyz' && resource.data.raterId == 'user_abc'
-    * @principle Enforces owner-only writes and public reads for rating information.
-    */
-   match /ratings/{ratingId} {
-    function isSignedIn() {
-     return request.auth != null;
-    }
- 
-
-    function isRater(raterId) {
-     return request.auth.uid == raterId;
-    }
- 
-
-    function isExistingRater(ratingId, raterId) {
-     return isSignedIn() && isRater(raterId) && exists(/databases/$(database)/documents/ratings/$(ratingId));
-    }
- 
-
-    allow get, list: if isSignedIn();
-    allow create: if isSignedIn() && request.resource.data.raterId == request.auth.uid;
-    allow update: if isExistingRater(ratingId, resource.data.raterId);
-    allow delete: if isExistingRater(ratingId, resource.data.raterId);
-   }
- 
-
-   /**
-    * @description Controls access to chat messages within a ride. Only users who are part of the ride (either the offerer or a rider) can read or write messages.
-    * @path /rides/{rideId}/messages/{messageId}
-    * @allow (create) User with ID 'user_abc' can create a message in ride 'ride_123' if they are the offerer or a rider.
-    *     request.auth.uid == 'user_abc' && (get(/databases/$(database)/documents/rides/ride_123).data.offererId == 'user_abc' || 'user_abc' in get(/databases/$(database)/documents/rides/ride_123).data.riderIds)
-    * @allow (get) User with ID 'user_abc' can read a message in ride 'ride_123' if they are the offerer or a rider.
-    *     request.auth.uid == 'user_abc' && (get(/databases/$(database)/documents/rides/ride_123).data.offererId == 'user_abc' || 'user_abc' in get(/databases/$(database)/documents/rides/ride_123).data.riderIds)
-    * @allow (list) User with ID 'user_abc' can list messages in ride 'ride_123' if they are the offerer or a rider.
-    *     request.auth.uid == 'user_abc' && (get(/databases/$(database)/documents/rides/ride_123).data.offererId == 'user_abc' || 'user_abc' in get(/databases/$(database)/documents/rides/ride_123).data.riderIds)
-    * @allow (update) User with ID 'user_abc' can update a message in ride 'ride_123' if they are the offerer or a rider, and they are the message sender.
-    *     request.auth.uid == 'user_abc' && (get(/databases/$(database)/documents/rides/ride_123).data.offererId == 'user_abc' || 'user_abc' in get(/databases/$(database)/documents/rides/ride_123).data.riderIds) && resource.data.senderId == 'user_abc'
-    * @allow (delete) User with ID 'user_abc' can delete a message in ride 'ride_123' if they are the offerer or a rider, and they are the message sender.
-    *     request.auth.uid == 'user_abc' && (get(/databases/$(database)/documents/rides/ride_123).data.offererId == 'user_abc' || 'user_abc' in get(/databases/$(database)/documents/rides/ride_123).data.riderIds) && resource.data.senderId == 'user_abc'
-    * @deny (create) User with ID 'user_xyz' cannot create a message in ride 'ride_123' if they are not the offerer or a rider.
-    *     request.auth.uid == 'user_xyz' && !(get(/databases/$(database)/documents/rides/ride_123).data.offererId == 'user_xyz' || 'user_xyz' in get(/databases/$(database)/documents/rides/ride_123).data.riderIds)
-    * @deny (get) User with ID 'user_xyz' cannot read a message in ride 'ride_123' if they are not the offerer or a rider.
-    *     request.auth.uid == 'user_xyz' && !(get(/databases/$(database)/documents/rides/ride_123).data.offererId == 'user_xyz' || 'user_xyz' in get(/databases/$(database)/documents/rides/ride_123).data.riderIds)
-    * @deny (list) User with ID 'user_xyz' cannot list messages in ride 'ride_123' if they are not the offerer or a rider.
-    *     request.auth.uid == 'user_xyz' && !(get(/databases/$(database)/documents/rides/ride_123).data.offererId == 'user_xyz' || 'user_xyz' in get(/databases/$(database)/documents/rides/ride_123).data.riderIds)
-    * @principle Enforces shared access based on ride participation.
-    */
-   match /rides/{rideId}/messages/{messageId} {
-    function isSignedIn() {
-     return request.auth != null;
-    }
- 
-
-    function isRideParticipant(rideId) {
-     let ride = get(/databases/$(database)/documents/rides/$(rideId)).data;
-     return isSignedIn() && (ride.offererId == request.auth.uid || request.auth.uid in ride.riderIds);
-    }
- 
-
-    function isExistingSender(rideId, messageId, senderId) {
-     return isRideParticipant(rideId) && exists(/databases/$(database)/documents/rides/$(rideId)/messages/$(messageId)) && senderId == request.auth.uid;
-    }
- 
-
-    allow get, list: if isRideParticipant(rideId);
-    allow create: if isRideParticipant(rideId);
-    allow update: if isExistingSender(rideId, messageId, resource.data.senderId);
-    allow delete: if isExistingSender(rideId, messageId, resource.data.senderId);
-   }
   }
- }
+}
