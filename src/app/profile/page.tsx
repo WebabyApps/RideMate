@@ -49,16 +49,30 @@ import { useMemoFirebase } from "@/firebase/provider";
 
 function PassengerList({ rideId }: { rideId: string }) {
     const firestore = useFirestore();
-    const bookingsQuery = useMemoFirebase(() => {
-        if (!firestore) return null;
-        return query(collection(firestore, 'bookings'), where('rideId', '==', rideId));
+    const [passengers, setPassengers] = useState<Passenger[] | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+
+    const fetchPassengers = useCallback(async () => {
+        if (!firestore || !rideId) return;
+        setIsLoading(true);
+        try {
+            const bookingsQuery = query(collection(firestore, 'bookings'), where('rideId', '==', rideId));
+            const snapshot = await getDocs(bookingsQuery);
+            const bookingData = snapshot.docs.map(doc => doc.data() as Booking);
+            setPassengers(bookingData.map(b => b.passengerInfo));
+        } catch (error) {
+            console.error("Error fetching passengers:", error);
+            setPassengers([]);
+        } finally {
+            setIsLoading(false);
+        }
     }, [firestore, rideId]);
 
-    const { data: bookings, isLoading } = useCollection<Booking>(bookingsQuery);
+    useEffect(() => {
+        fetchPassengers();
+    }, [fetchPassengers]);
 
     if (isLoading) return <Skeleton className="h-8 w-full" />;
-
-    const passengers = bookings?.map(b => b.passengerInfo) || [];
 
     if (!passengers || passengers.length === 0) {
         return <p className="text-sm text-muted-foreground mt-2">No passengers yet.</p>;

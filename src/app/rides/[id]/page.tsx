@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { StarRating } from "@/components/star-rating";
 import { Calendar, Clock, Users, DollarSign, MessageSquare, AlertCircle, Dog, Briefcase } from "lucide-react";
 import { format } from 'date-fns';
-import { useUser, useFirestore, addDocumentNonBlocking, useMemoFirebase, useCollection } from "@/firebase";
+import { useUser, useFirestore, addDocumentNonBlocking, useMemoFirebase } from "@/firebase";
 import { doc, collection, query, where, getDocs, writeBatch, deleteDoc } from "firebase/firestore";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
@@ -90,18 +90,32 @@ function DriverInfo({ offererId }: { offererId: string }) {
 
 function PassengerList({ rideId }: { rideId: string }) {
     const firestore = useFirestore();
-    const bookingsQuery = useMemoFirebase(() => {
-        if (!firestore) return null;
-        return query(collection(firestore, 'bookings'), where('rideId', '==', rideId));
+    const [passengers, setPassengers] = useState<Passenger[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    const fetchPassengers = useCallback(async () => {
+        if (!firestore || !rideId) return;
+        setIsLoading(true);
+        try {
+            const bookingsQuery = query(collection(firestore, 'bookings'), where('rideId', '==', rideId));
+            const snapshot = await getDocs(bookingsQuery);
+            const bookingData = snapshot.docs.map(doc => doc.data() as Booking);
+            setPassengers(bookingData.map(b => b.passengerInfo));
+        } catch (error) {
+            console.error("Error fetching passengers:", error);
+            setPassengers([]);
+        } finally {
+            setIsLoading(false);
+        }
     }, [firestore, rideId]);
 
-    const { data: bookings, isLoading } = useCollection<Booking>(bookingsQuery);
+    useEffect(() => {
+        fetchPassengers();
+    }, [fetchPassengers]);
 
     if (isLoading) {
         return <Skeleton className="h-12 w-full" />
     }
-
-    const passengers = bookings?.map(b => b.passengerInfo) || [];
 
     if (passengers.length === 0) {
         return <p className="text-sm text-muted-foreground">No passengers have booked yet.</p>;
@@ -128,6 +142,10 @@ export default function RideDetailPage() {
   const firestore = useFirestore();
   const params = useParams();
   const rideId = typeof params.id === 'string' ? params.id : '';
+  
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [areBookingsLoading, setAreBookingsLoading] = useState(true);
+
 
   const rideDocRef = useMemoFirebase(() => {
     if (!firestore || !rideId) return null;
@@ -136,18 +154,36 @@ export default function RideDetailPage() {
 
   const { data: ride, isLoading: isRideLoading } = useDoc<Ride>(rideDocRef);
 
-  const bookingsQuery = useMemoFirebase(() => {
-    if (!firestore || !rideId) return null;
-    return query(collection(firestore, 'bookings'), where('rideId', '==', rideId));
-  }, [firestore, rideId]);
-
-  const { data: bookings, isLoading: areBookingsLoading } = useCollection<Booking>(bookingsQuery);
-
   const userProfileDocRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return doc(firestore, 'users', user.uid);
   }, [firestore, user]);
   const { data: userProfile } = useDoc<UserProfile>(userProfileDocRef);
+
+  const fetchBookings = useCallback(async () => {
+    if (!firestore || !rideId) return;
+    setAreBookingsLoading(true);
+    try {
+        const bookingsQuery = query(collection(firestore, 'bookings'), where('rideId', '==', rideId));
+        const snapshot = await getDocs(bookingsQuery);
+        const bookingData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Booking));
+        setBookings(bookingData);
+    } catch (error) {
+        console.error("Error fetching bookings:", error);
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Could not fetch booking information for this ride.",
+        });
+        setBookings([]);
+    } finally {
+        setAreBookingsLoading(false);
+    }
+}, [firestore, rideId]);
+
+useEffect(() => {
+    fetchBookings();
+}, [fetchBookings]);
 
 
   const handleBookSeat = async () => {
@@ -198,6 +234,7 @@ export default function RideDetailPage() {
     
     const bookingsColRef = collection(firestore, 'bookings');
     await addDocumentNonBlocking(bookingsColRef, bookingData);
+    fetchBookings(); // Re-fetch bookings to update state
 
     toast({
         title: "Seat Booked!",
@@ -221,6 +258,7 @@ export default function RideDetailPage() {
     
     const bookingDocRef = doc(firestore, 'bookings', userBooking.id);
     await deleteDocumentNonBlocking(bookingDocRef);
+    fetchBookings(); // Re-fetch bookings to update state
   
     toast({
       title: "Booking Cancelled",
