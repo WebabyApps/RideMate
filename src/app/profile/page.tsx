@@ -1,35 +1,23 @@
 'use client';
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useMemo, useCallback } from "react";
-import { useUser, useFirestore, deleteDocumentNonBlocking } from "@/firebase";
+import { useEffect, useState } from "react";
+import { useUser, useFirestore, useMemoFirebase } from "@/firebase";
 import { collection, query, where, doc, getDocs, writeBatch } from 'firebase/firestore';
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { format } from "date-fns";
-import Link from "next/link";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { StarRating } from "@/components/star-rating";
-import { Calendar, Mail, Edit, Trash2, Users } from "lucide-react";
+import { Calendar, Mail, Edit } from "lucide-react";
 import { useDoc } from "@/firebase/firestore/use-doc";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import {
   Dialog,
   DialogContent,
@@ -43,305 +31,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
-import type { Ride, UserProfile, Passenger, Booking } from "@/lib/types";
-import { useMemoFirebase } from "@/firebase/provider";
+import type { UserProfile, Booking } from "@/lib/types";
+import { OfferedRidesList } from "@/components/profile/offered-rides-list";
+import { BookedRidesList } from "@/components/profile/booked-rides-list";
 
-
-function PassengerList({ rideId }: { rideId: string }) {
-    const firestore = useFirestore();
-    const [passengers, setPassengers] = useState<Passenger[] | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
-
-    const fetchPassengers = useCallback(async () => {
-        if (!firestore || !rideId) return;
-        setIsLoading(true);
-        try {
-            const bookingsQuery = query(collection(firestore, 'bookings'), where('rideId', '==', rideId));
-            const snapshot = await getDocs(bookingsQuery);
-            const bookingData = snapshot.docs.map(doc => doc.data() as Booking);
-            setPassengers(bookingData.map(b => b.passengerInfo));
-        } catch (error) {
-            console.error("Error fetching passengers:", error);
-            setPassengers([]);
-        } finally {
-            setIsLoading(false);
-        }
-    }, [firestore, rideId]);
-
-    useEffect(() => {
-        fetchPassengers();
-    }, [fetchPassengers]);
-
-    if (isLoading) return <Skeleton className="h-8 w-full" />;
-
-    if (!passengers || passengers.length === 0) {
-        return <p className="text-sm text-muted-foreground mt-2">No passengers yet.</p>;
-    }
-
-    return (
-        <div className="flex flex-wrap gap-4 mt-2">
-            {passengers.map(p => (
-                <div key={p.id} className="flex items-center gap-2 text-sm">
-                    <Avatar className="h-6 w-6">
-                        <AvatarImage src={p.avatarUrl} alt={p.firstName} />
-                        <AvatarFallback>{p.firstName.charAt(0)}</AvatarFallback>
-                    </Avatar>
-                    <span>{p.firstName}</span>
-                </div>
-            ))}
-        </div>
-    );
-}
-
-function OfferedRidesList({ userId }: { userId: string }) {
-    const firestore = useFirestore();
-    const { toast } = useToast();
-    const [userRides, setUserRides] = useState<Ride[] | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
-    
-    const fetchRides = useCallback(async () => {
-        if (!firestore || !userId) return;
-        setIsLoading(true);
-        try {
-            const ridesQuery = query(
-              collection(firestore, 'rides'), 
-              where('offererId', '==', userId)
-            );
-            const snapshot = await getDocs(ridesQuery);
-            const rides = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Ride));
-            
-            rides.sort((a, b) => {
-              const timeA = a.departureTime?.toDate?.().getTime() || 0;
-              const timeB = b.departureTime?.toDate?.().getTime() || 0;
-              return timeB - timeA;
-            });
-
-            setUserRides(rides);
-        } catch (error) {
-            console.error("Error fetching offered rides:", error);
-            toast({
-                variant: "destructive",
-                title: "Error fetching rides",
-                description: "Could not fetch your offered rides.",
-            });
-        } finally {
-            setIsLoading(false);
-        }
-    }, [firestore, userId, toast]);
-    
-    useEffect(() => {
-        fetchRides();
-    }, [fetchRides]);
-
-
-    const handleCancelRide = async (rideId: string) => {
-        if (!firestore) return;
-
-        const batch = writeBatch(firestore);
-        
-        const rideDocRef = doc(firestore, 'rides', rideId);
-        batch.delete(rideDocRef);
-
-        const bookingsQuery = query(collection(firestore, 'bookings'), where('rideId', '==', rideId));
-        const bookingsSnapshot = await getDocs(bookingsQuery);
-        bookingsSnapshot.forEach(bookingDoc => {
-            batch.delete(bookingDoc.ref);
-        });
-
-        try {
-            await batch.commit();
-            setUserRides(prevRides => prevRides?.filter(ride => ride.id !== rideId) || null);
-            toast({
-                title: "Ride Cancelled",
-                description: "You have successfully cancelled the ride and all its bookings.",
-            });
-        } catch (error) {
-            console.error("Error cancelling ride:", error);
-            toast({
-                variant: "destructive",
-                title: "Error",
-                description: "Could not cancel the ride. Please try again.",
-            });
-        }
-    };
-
-    if (isLoading) {
-        return <Skeleton className="h-40 w-full" />;
-    }
-
-    if (!userRides || userRides.length === 0) {
-        return (
-            <div className="text-center py-10 border-2 border-dashed rounded-lg">
-                <p className="text-muted-foreground">You haven't offered any rides yet.</p>
-                <Button asChild variant="link" className="mt-2 text-primary">
-                    <Link href="/offer-ride">Offer a ride now</Link>
-                </Button>
-            </div>
-        );
-    }
-  
-    return (
-        <div className="space-y-4">
-        {userRides.map(ride => (
-            <Card key={ride.id} className="p-4">
-                <div className="flex justify-between items-start">
-                    <div>
-                        <p className="font-bold">{ride.origin} to {ride.destination}</p>
-                        <p className="text-sm text-muted-foreground">{ride.departureTime ? format(ride.departureTime.toDate(), 'PPpp') : ''}</p>
-                        <p className="text-sm">${ride.cost} per seat</p>
-                    </div>
-                    <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                        <Button variant="destructive" size="icon">
-                            <Trash2 className="h-4 w-4" />
-                        </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                        <AlertDialogHeader>
-                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                            This action cannot be undone. This will permanently cancel your ride and notify any booked passengers.
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                            <AlertDialogCancel>Back</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleCancelRide(ride.id)}>
-                            Yes, Cancel Ride
-                            </AlertDialogAction>
-                        </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
-                </div>
-                <Separator className="my-3"/>
-                <div>
-                    <h4 className="font-semibold text-sm flex items-center gap-2"><Users className="h-4 w-4"/>Passengers</h4>
-                    <PassengerList rideId={ride.id} />
-                </div>
-            </Card>
-        ))}
-        </div>
-    );
-}
-
-function BookedRidesList({ userId }: { userId: string }) {
-    const firestore = useFirestore();
-    const { toast } = useToast();
-    const [bookedRides, setBookedRides] = useState<{ride: Ride, bookingId: string}[] | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
-
-    const fetchBookedRides = useCallback(async () => {
-        if (!firestore || !userId) return;
-        setIsLoading(true);
-        try {
-            const bookingsQuery = query(collection(firestore, 'bookings'), where('userId', '==', userId));
-            const bookingsSnapshot = await getDocs(bookingsQuery);
-            const userBookings = bookingsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Booking));
-
-            if (userBookings.length === 0) {
-                setBookedRides([]);
-                setIsLoading(false);
-                return;
-            }
-
-            const ridePromises = userBookings.map(async (booking) => {
-                const rideDocRef = doc(firestore, 'rides', booking.rideId);
-                const rideQuery = query(collection(firestore, 'rides'), where('__name__', '==', rideDocRef.id));
-                const rideDocSnapshot = await getDocs(rideQuery);
-
-                if (!rideDocSnapshot.empty) {
-                    const rideData = { id: rideDocSnapshot.docs[0].id, ...rideDocSnapshot.docs[0].data() } as Ride;
-                    return { ride: rideData, bookingId: booking.id };
-                }
-                return null;
-            });
-
-            const rideResults = (await Promise.all(ridePromises)).filter(r => r !== null) as {ride: Ride, bookingId: string}[];
-            setBookedRides(rideResults);
-        } catch (error) {
-            console.error("Error fetching booked rides:", error);
-            toast({
-                variant: "destructive",
-                title: "Error",
-                description: "Could not fetch your booked rides.",
-            });
-        } finally {
-            setIsLoading(false);
-        }
-    }, [firestore, userId, toast]);
-
-    useEffect(() => {
-        fetchBookedRides();
-    }, [fetchBookedRides]);
-
-
-    const handleCancelBooking = async (bookingId: string) => {
-        if (!firestore) return;
-        const bookingDocRef = doc(firestore, 'bookings', bookingId);
-        try {
-            await deleteDocumentNonBlocking(bookingDocRef);
-            setBookedRides(prev => prev?.filter(br => br.bookingId !== bookingId) || null);
-            toast({
-                title: "Booking Cancelled",
-                description: "You have successfully cancelled your booking.",
-            });
-        } catch (error) {
-             toast({
-                variant: "destructive",
-                title: "Error",
-                description: "Could not cancel booking.",
-            });
-        }
-    };
-    
-    if (isLoading) {
-        return <Skeleton className="h-40 w-full" />;
-    }
-
-    if (!bookedRides || bookedRides.length === 0) {
-        return (
-            <div className="text-center py-10 border-2 border-dashed rounded-lg">
-                <p className="text-muted-foreground">You haven't booked any rides.</p>
-                <Button asChild variant="link" className="mt-2 text-primary">
-                    <Link href="/rides">Find a ride now</Link>
-                </Button>
-            </div>
-        );
-    }
-  
-    return (
-        <div className="space-y-4">
-        {bookedRides.map(({ride, bookingId}) => (
-            <Card key={ride.id} className="p-4 flex justify-between items-center">
-                <div>
-                    <p className="font-bold">{ride.origin} to {ride.destination}</p>
-                    <p className="text-sm text-muted-foreground">{ride.departureTime ? format(ride.departureTime.toDate(), 'PPpp') : ''}</p>
-                    <p className="text-sm">${ride.cost} per seat</p>
-                </div>
-                <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                    <Button variant="outline">Cancel Booking</Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Cancel your booking?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                        This will remove you from the ride and free up your seat. Are you sure?
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Keep Booking</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => handleCancelBooking(bookingId)}>
-                        Yes, Cancel
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
-            </Card>
-        ))}
-        </div>
-    );
-}
-
+const profileSchema = z.object({
+    avatarUrl: z.string().url("Please enter a valid URL.").min(1, "URL is required."),
+});
 
 export default function ProfilePage() {
   const { user, isUserLoading } = useUser();
@@ -520,10 +216,10 @@ export default function ProfilePage() {
                     <TabsTrigger value="booked">Rides You've Booked</TabsTrigger>
                 </TabsList>
                 <TabsContent value="offered" className="mt-4">
-                    <OfferedRidesList userId={user.uid} />
+                    <OfferedRidesList />
                 </TabsContent>
                 <TabsContent value="booked" className="mt-4">
-                    <BookedRidesList userId={user.uid} />
+                    <BookedRidesList />
                 </TabsContent>
             </Tabs>
         </div>
@@ -531,7 +227,3 @@ export default function ProfilePage() {
     </div>
   );
 }
-
-const profileSchema = z.object({
-    avatarUrl: z.string().url("Please enter a valid URL.").min(1, "URL is required."),
-  });
