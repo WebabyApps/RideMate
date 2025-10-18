@@ -1,132 +1,101 @@
 /**
- * @file Firebase Security Rules for RideMate Application
- *
- * @core_philosophy This ruleset enforces a combination of ownership-based and shared-access security models.
- *  - User profiles are strictly owned by the authenticated user.
- *  - Rides are owned by the user who offered them, with additional access granted to participating riders.
- *  - Ratings can be listed, but write access is restricted to ensure data integrity.
- *  - Chat messages are accessible only to users participating in the associated ride.
- *
- * @data_structure
- *  - /users/{userId}: Stores individual user profiles. Access is restricted to the owning user.
- *  - /rides/{rideId}: Stores ride details. The offerer has full control; riders have read access and can post chat messages.
- *  - /ratings/{ratingId}: Stores ratings. Listing is public; creation is restricted to authenticated users for a specific ride.
- *  - /rides/{rideId}/messages/{messageId}: Stores chat messages related to a ride. Access is limited to ride participants.
- *
- * @key_security_decisions
- *  - User listing is not permitted.
- *  - Public read access is granted for the /rides and /ratings collections to enable discovery.
- *  - Strict ownership is enforced for user profiles to protect personal data.
- *
- * @denormalization_for_authorization
- *  - The `Ride` document includes `offererId` for identifying the ride creator, allowing for easy ownership checks.
- *  - The `Rating` document includes both `raterId` and `ratedUserId` to independently verify rating creation and target.
- *
- * @structural_segregation
- *  - Private user data is stored under /users/{userId}, separate from public ride listings in the /rides collection.
+ * @description This ruleset enforces a user-ownership model for user profiles and creator-ownership for rides, with public read access for rides to facilitate discovery. Chat messages are restricted to ride participants.
+ * @dataStructure
+ *   - /users/{userId}: User profile data, owned by the user with matching userId.
+ *   - /rides/{rideId}: Ride data, owned by the user with offererId.
+ *   - /ratings/{ratingId}: Rating data, accessible with restrictions based on raterId and ratedUserId.
+ *   - /rides/{rideId}/messages/{messageId}: Chat messages, accessible only to participants of the ride.
+ * @keySecurityDecisions
+ *   - Users can only read/write their own profile data.
+ *   - Rides are publicly readable but only the offerer can modify them.
+ *   - Listing of users and ratings is not allowed.
+ *   - Chat messages are only accessible to users associated with the ride.
+ * @denormalizationForAuthorization
+ *   - Rides: The offererId field is used to identify the ride creator.
+ *   - Ratings: Both raterId and ratedUserId are included to simplify authorization.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Controls access to user profile information.
+     * @description Controls access to user profile data.
      * @path /users/{userId}
-     * @allow (create) User with UID 'user123' can create their profile document at /users/user123.
-     * @allow (get, update, delete) User with UID 'user123' can read, update, and delete their profile document at /users/user123.
-     * @deny (create) User with UID 'user456' cannot create a profile document at /users/user123.
-     * @deny (get, update, delete) User with UID 'user456' cannot read, update, or delete the profile document at /users/user123.
-     * @principle Enforces document ownership for user profiles.
+     * @allow (create) - User with UID 'user123' can create their profile at /users/user123.
+     * @allow (get, update, delete) - User with UID 'user123' can read/write their profile at /users/user123.
+     * @deny (create) - User with UID 'user456' cannot create a profile at /users/user123.
+     * @deny (get, update, delete) - User with UID 'user456' cannot read/write the profile at /users/user123.
+     * @principle Enforces document ownership for all operations.
      */
     match /users/{userId} {
-      // Function to check if the requesting user is the owner of the document.
-      function isOwner(userId) {
-        return request.auth != null && request.auth.uid == userId;
-      }
-
-      // Function to check if the requesting user is the existing owner of the document.
-      function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-      }
-
-      allow get: if isOwner(userId);
+      //isSingedIn to avoid unauthorized access
+      allow get: if isSignedIn() && isOwner(userId);
       allow list: if false;
-      allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.id == userId;
+      allow update: if isSignedIn() && isOwner(userId) && resource.data.id == request.resource.data.id;
+      allow delete: if isSignedIn() && isOwner(userId) && resource.data.id == userId;
     }
 
     /**
-     * @description Controls access to ride information.
+     * @description Controls access to ride data. Rides are publicly readable, but only the offerer can modify them.
      * @path /rides/{rideId}
-     * @allow (get, list) Any user can read (get, list) ride information.
-     * @allow (create) User with UID 'user123' can create a ride document with offererId: 'user123'.
-     * @allow (update, delete) User with UID 'user123' can update/delete ride document they own (resource.data.offererId == 'user123').
-     * @deny (create) User with UID 'user456' cannot create a ride document with offererId: 'user123'.
-     * @deny (update, delete) User with UID 'user456' cannot update/delete a ride document owned by 'user123'.
-     * @principle Allows public read access but restricts write access to the ride offerer.
+     * @allow (get, list) - Any user can read ride data.
+     * @allow (create) - User with UID 'user123' can create a ride with offererId 'user123'.
+     * @allow (update, delete) - User with UID 'user123' can update/delete a ride where resource.data.offererId == 'user123'.
+     * @deny (create) - User with UID 'user456' cannot create a ride with offererId 'user123'.
+     * @deny (update, delete) - User with UID 'user456' cannot update/delete a ride where resource.data.offererId == 'user123'.
+     * @principle Public read access with owner-only writes.
      */
     match /rides/{rideId} {
-      // Function to check if the requesting user is the offerer of the ride.
-      function isOfferer(offererId) {
-        return request.auth != null && request.auth.uid == offererId;
-      }
-
-      // Function to check if the requesting user is the existing offerer of the ride.
-      function isExistingOfferer(offererId) {
-        return isOfferer(offererId) && resource != null;
-      }
-
       allow get, list: if true;
-      allow create: if request.auth != null && request.resource.data.offererId == request.auth.uid;
-      allow update: if isExistingOfferer(resource.data.offererId);
-      allow delete: if isExistingOfferer(resource.data.offererId);
+      allow create: if isSignedIn() && request.resource.data.offererId == request.auth.uid;
+      allow update: if isSignedIn() && isExistingOwner(resource.data.offererId);
+      allow delete: if isSignedIn() && isExistingOwner(resource.data.offererId);
     }
 
     /**
-     * @description Controls access to ride rating information.
+     * @description Controls access to rating data.
      * @path /ratings/{ratingId}
-     * @allow (get, list) Any user can read (get, list) rating information.
-     * @allow (create) User with UID 'user123' can create a rating document for a ride where they are a participant.
-     * @deny (create) User with UID 'user456' cannot create a rating document for a ride they are not a participant in.
-     * @deny (update, delete) No one can update or delete a rating.
-     * @principle Allows public read access but restricts write access to authenticated users.
+     * @allow (create) - User with UID 'user123' can create a rating with raterId 'user123'.
+     * @allow (get, update, delete) - Only the user who created the rating (raterId) can modify it.
+     * @deny (create) - User with UID 'user456' cannot create a rating with raterId 'user123'.
+     * @deny (get, update, delete) - User with UID 'user456' cannot read/write a rating where resource.data.raterId == 'user123'.
+     * @principle Enforces document ownership for writes.
      */
     match /ratings/{ratingId} {
-      allow get, list: if true;
-      allow create: if request.auth != null;
-      allow update, delete: if false;
+      allow get: if isSignedIn() && (resource.data.ratedUserId == request.auth.uid || resource.data.raterId == request.auth.uid);
+      allow list: if false;
+      allow create: if isSignedIn() && request.resource.data.raterId == request.auth.uid;
+      allow update: if isSignedIn() && isExistingOwner(resource.data.raterId);
+      allow delete: if isSignedIn() && isExistingOwner(resource.data.raterId);
     }
 
     /**
-     * @description Controls access to chat messages for a specific ride.
+     * @description Controls access to chat messages within a ride. Only ride participants can create, read, update or delete messages.
      * @path /rides/{rideId}/messages/{messageId}
-     * @allow (get, list) Any ride participant can read (get, list) messages.
-     * @allow (create) Any ride participant can create a new message.
-     * @deny (get, list, create) User not participating in ride cannot read/write messages.
-     * @deny (update, delete) No one can update or delete a message.
-     * @principle Restricts access to chat messages to users participating in the ride.
+     * @allow (create) - User with UID 'user123' can create a message in ride 'ride456' if they are a rider or the offerer.
+     * @allow (get, list) - User with UID 'user123' can read messages in ride 'ride456' if they are a rider or the offerer.
+     * @deny (create) - User with UID 'user456' cannot create a message in ride 'ride456' if they are not a rider or the offerer.
+     * @deny (get, list) - User with UID 'user456' cannot read messages in ride 'ride456' if they are not a rider or the offerer.
+     * @principle Restricts access to ride participants.
      */
     match /rides/{rideId}/messages/{messageId} {
-      // Function to check if the user is a participant in the ride.
-      function isRideParticipant(rideId) {
-        return get(/databases/$(database)/documents/rides/$(rideId)).data.riderIds.hasAny([request.auth.uid]) ||
-               get(/databases/$(database)/documents/rides/$(rideId)).data.offererId == request.auth.uid;
-      }
-
-      allow get, list: if request.auth != null && isRideParticipant(rideId);
-      allow create: if request.auth != null && isRideParticipant(rideId);
-      allow update, delete: if false;
+      allow get, list: if isSignedIn() && (get(/databases/$(database)/documents/rides/$(rideId)).data.riderIds.hasAny([request.auth.uid]) || get(/databases/$(database)/documents/rides/$(rideId)).data.offererId == request.auth.uid);
+      allow create: if isSignedIn() && (get(/databases/$(database)/documents/rides/$(rideId)).data.riderIds.hasAny([request.auth.uid]) || get(/databases/$(database)/documents/rides/$(rideId)).data.offererId == request.auth.uid);
+      allow update: if false;
+      allow delete: if false;
     }
 
-    /**
-     * @description Temporarily deny access to the bookings collection as there is an active error reported by NextJS.
-     * @path /bookings
-     * @allow (get, list, create, update, delete) No one can get, list, create, update, or delete a booking.
-     * @principle Prevents access to the bookings collection.
-     */
-    match /bookings {
-       allow get, list, create, update, delete: if false; 
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    function isExistingOwner(ownerId) {
+        return request.auth.uid == ownerId && resource != null;
     }
   }
 }
