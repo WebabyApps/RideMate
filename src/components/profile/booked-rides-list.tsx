@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { collection, query, where, getDocs, doc, deleteDoc } from 'firebase/firestore';
-import { useFirestore, useUser, deleteDocumentNonBlocking } from '@/firebase';
+import { collection, query, where, getDocs, doc } from 'firebase/firestore';
+import { useFirestore, useUser } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import type { Ride, Booking } from '@/lib/types';
 import { format } from 'date-fns';
@@ -22,6 +22,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 
 export function BookedRidesList() {
     const { user } = useUser();
@@ -44,20 +45,31 @@ export function BookedRidesList() {
                 return;
             }
 
-            const ridePromises = userBookings.map(async (booking) => {
-                const rideDocRef = doc(firestore, 'rides', booking.rideId);
-                const rideQuery = query(collection(firestore, 'rides'), where('__name__', '==', rideDocRef.id));
-                const rideDocSnapshot = await getDocs(rideQuery);
+            const rideIds = [...new Set(userBookings.map(b => b.rideId))];
+            
+            if (rideIds.length === 0) {
+              setBookedRides([]);
+              setIsLoading(false);
+              return;
+            }
 
-                if (!rideDocSnapshot.empty) {
-                    const rideData = { id: rideDocSnapshot.docs[0].id, ...rideDocSnapshot.docs[0].data() } as Ride;
-                    return { ride: rideData, bookingId: booking.id };
-                }
-                return null;
+            const ridesQuery = query(collection(firestore, 'rides'), where('__name__', 'in', rideIds));
+            const ridesSnapshot = await getDocs(ridesQuery);
+            const ridesMap = new Map(ridesSnapshot.docs.map(doc => [doc.id, { id: doc.id, ...doc.data() } as Ride]));
+
+            const combinedData = userBookings.map(booking => {
+                const ride = ridesMap.get(booking.rideId);
+                return ride ? { ride, bookingId: booking.id } : null;
+            }).filter(item => item !== null) as { ride: Ride, bookingId: string }[];
+            
+            combinedData.sort((a, b) => {
+              const timeA = a.ride.departureTime?.toDate?.().getTime() || 0;
+              const timeB = b.ride.departureTime?.toDate?.().getTime() || 0;
+              return timeB - timeA;
             });
 
-            const rideResults = (await Promise.all(ridePromises)).filter(r => r !== null) as {ride: Ride, bookingId: string}[];
-            setBookedRides(rideResults);
+            setBookedRides(combinedData);
+
         } catch (error) {
             console.error("Error fetching booked rides:", error);
             toast({
@@ -113,7 +125,7 @@ export function BookedRidesList() {
         {bookedRides.map(({ride, bookingId}) => (
             <Card key={ride.id} className="p-4 flex justify-between items-center">
                 <div>
-                    <p className="font-bold">{ride.origin} to {ride.destination}</p>
+                    <Link href={`/rides/${ride.id}`} className="font-bold hover:underline">{ride.origin} to {ride.destination}</Link>
                     <p className="text-sm text-muted-foreground">{ride.departureTime ? format(ride.departureTime.toDate(), 'PPpp') : ''}</p>
                     <p className="text-sm">${ride.cost} per seat</p>
                 </div>
