@@ -275,11 +275,11 @@ export default function RideDetailPage() {
                     <AvatarFallback>{ride.offererName?.charAt(0)}</AvatarFallback>
                     </Avatar>
                     <div className="text-center">
-                    <p className="font-bold text-xl">{ride.offererName}</p>
+                    <p className="font-bold text-xl">{ride.offererName || 'Driver'}</p>
                     <StarRating rating={driverProfile?.rating || 0} className="justify-center mt-1" />
                     </div>
                     <Button variant="outline" className="w-full">
-                    <MessageSquare className="w-4 h-4 mr-2" /> Message {ride.offererName.split(' ')[0]}
+                    <MessageSquare className="w-4 h-4 mr-2" /> Message {ride.offererName ? ride.offererName.split(' ')[0] : 'Driver'}
                     </Button>
                 </CardContent>
             </Card>
