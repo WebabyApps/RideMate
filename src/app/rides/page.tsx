@@ -13,10 +13,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import type { Ride } from "@/lib/types";
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
-import { collection, query, orderBy } from "firebase/firestore";
+import { useFirestore } from "@/firebase";
+import { collection, query, getDocs, orderBy, where, Timestamp } from "firebase/firestore";
 
 export const dynamic = 'force-dynamic';
 
@@ -51,22 +51,42 @@ function RideList({ rides, isLoading }: { rides: Ride[] | null, isLoading: boole
 
 export default function RidesPage() {
   const firestore = useFirestore();
+  const [allRides, setAllRides] = useState<Ride[] | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [originFilter, setOriginFilter] = useState('');
   const [destinationFilter, setDestinationFilter] = useState('');
   const [sort, setSort] = useState('departure-asc');
 
-  const ridesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    // Query for all upcoming rides, ordered by departure time. Filtering will be done client-side.
-    return query(collection(firestore, 'rides'), orderBy('departureTime', 'asc'));
+  useEffect(() => {
+    if (!firestore) return;
+
+    const fetchRides = async () => {
+      setIsLoading(true);
+      try {
+        const ridesQuery = query(
+          collection(firestore, 'rides'),
+          where('departureTime', '>', Timestamp.now()),
+          orderBy('departureTime', 'asc')
+        );
+        const querySnapshot = await getDocs(ridesQuery);
+        const ridesData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Ride));
+        setAllRides(ridesData);
+      } catch (error) {
+        console.error("Error fetching rides:", error);
+        setAllRides([]); // Set to empty array on error
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchRides();
   }, [firestore]);
 
-  const { data: allRides, isLoading } = useCollection<Ride>(ridesQuery);
 
   const filteredAndSortedRides = useMemo(() => {
     if (!allRides) return null;
 
-    let processedRides = allRides.filter(ride => ride.departureTime && ride.departureTime.toDate() > new Date());
+    let processedRides = [...allRides]; // Create a mutable copy
 
     if (originFilter) {
       processedRides = processedRides.filter(ride =>
@@ -88,8 +108,11 @@ export default function RidesPage() {
             case 'price-desc':
                 return b.cost - a.cost;
             case 'departure-asc':
+                 // Fallback to prevent error if departureTime is not a valid date
+                const timeA = a.departureTime?.toDate?.().getTime() || 0;
+                const timeB = b.departureTime?.toDate?.().getTime() || 0;
+                return timeA - timeB;
             default:
-                // Data is already sorted by departure time from Firestore
                 return 0;
         }
     });
