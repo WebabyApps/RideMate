@@ -8,13 +8,24 @@ import { StarRating } from "@/components/star-rating";
 import { Calendar, Clock, Users, DollarSign, MessageSquare, AlertCircle, Dog, Briefcase, User } from "lucide-react";
 import { format } from 'date-fns';
 import { useUser, useFirestore, updateDocumentNonBlocking, useMemoFirebase } from "@/firebase";
-import { doc, arrayUnion, arrayRemove } from "firebase/firestore";
+import { doc, arrayUnion, arrayRemove, increment } from "firebase/firestore";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
 import { RideMap } from "@/components/ride-map";
 import type { Ride, UserProfile, Passenger } from '@/lib/types';
 import Link from 'next/link';
 import { useDoc } from "@/firebase/firestore/use-doc";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 function DriverInfo({ name, avatarUrl, rating }: { name: string, avatarUrl: string, rating: number }) {
   if (!name) {
@@ -124,12 +135,37 @@ export default function RideDetailPage() {
     updateDocumentNonBlocking(rideDocRef, {
         riderIds: arrayUnion(user.uid),
         passengers: arrayUnion(passengerData),
-        availableSeats: ride.availableSeats - 1,
+        availableSeats: increment(-1),
     });
 
     toast({
         title: "Seat Booked!",
         description: "You have successfully booked a seat for this ride.",
+    });
+  };
+
+  const handleCancelBooking = () => {
+    if (!user || !rideDocRef || !ride) return;
+  
+    const passengerToRemove = ride.passengers.find(p => p.id === user.uid);
+    if (!passengerToRemove) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Could not find your passenger details to cancel the booking."
+      });
+      return;
+    }
+  
+    updateDocumentNonBlocking(rideDocRef, {
+      riderIds: arrayRemove(user.uid),
+      passengers: arrayRemove(passengerToRemove),
+      availableSeats: increment(1)
+    });
+  
+    toast({
+      title: "Booking Cancelled",
+      description: "Your booking has been successfully cancelled."
     });
   };
 
@@ -167,6 +203,10 @@ export default function RideDetailPage() {
         </div>
     )
   }
+
+  const isUserBooked = user ? ride.riderIds?.includes(user.uid) : false;
+  const isUserTheDriver = user ? ride.offererId === user.uid : false;
+  const isRideFull = ride.availableSeats === 0;
   
   return (
     <div className="container mx-auto max-w-5xl px-4 md:px-6 py-8">
@@ -234,9 +274,36 @@ export default function RideDetailPage() {
             </CardContent>
           </Card>
            <div className="sticky top-24">
-            <Button size="lg" className="w-full text-lg font-bold bg-accent hover:bg-accent/90 text-accent-foreground" onClick={handleBookSeat} disabled={ride.availableSeats === 0 || (!!user && (ride.offererId === user.uid || ride.riderIds?.includes(user.uid)))}>
-              {ride.availableSeats > 0 ? 'Book a Seat' : 'Ride Full'}
-            </Button>
+           {isUserBooked ? (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" size="lg" className="w-full text-lg font-bold">Cancel Booking</Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will remove you from the ride and notify the driver. This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Keep Booking</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleCancelBooking}>
+                      Yes, Cancel
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            ) : (
+              <Button 
+                size="lg" 
+                className="w-full text-lg font-bold bg-accent hover:bg-accent/90 text-accent-foreground" 
+                onClick={handleBookSeat} 
+                disabled={isRideFull || isUserTheDriver}
+              >
+                {isRideFull ? 'Ride Full' : 'Book a Seat'}
+              </Button>
+            )}
            </div>
         </div>
       </div>
