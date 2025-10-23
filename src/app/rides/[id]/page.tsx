@@ -27,9 +27,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useEffect, useState, useCallback } from "react";
-import { addDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { PassengerList } from "@/components/profile/passenger-list";
-
+import { bookRide } from "@/ai/flows/book-ride";
 
 export default function RideDetailPage() {
   const { user } = useUser();
@@ -48,12 +47,6 @@ export default function RideDetailPage() {
 
   const { data: ride, isLoading: isRideLoading } = useDoc<Ride>(rideDocRef);
 
-  const userProfileDocRef = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return doc(firestore, 'users', user.uid);
-  }, [firestore, user]);
-  const { data: userProfile } = useDoc<UserProfile>(userProfileDocRef);
-  
   const fetchBookings = useCallback(async () => {
     if (!firestore || !rideId) return;
     setAreBookingsLoading(true);
@@ -89,51 +82,34 @@ export default function RideDetailPage() {
       router.push('/signup');
       return;
     }
-
-    if (!rideDocRef || !ride || !userProfile || !firestore) return;
-
-    const isAlreadyBooked = bookings?.some(b => b.userId === user.uid);
-
-    if (isAlreadyBooked || ride.offererId === user.uid) {
-        toast({
-            variant: "destructive",
-            title: "Cannot book seat",
-            description: "You are already associated with this ride.",
-        });
-        return;
-    }
-
-    const availableSeats = ride.totalSeats - (bookings?.length || 0);
-    if (availableSeats <= 0) {
+  
+    if (!ride) {
       toast({
         variant: "destructive",
-        title: "Ride is Full",
-        description: "Sorry, there are no available seats on this ride.",
+        title: "Ride not available",
+        description: "This ride is no longer available.",
       });
       return;
     }
-    
-    const passengerData = {
-        id: user.uid,
-        firstName: userProfile.firstName,
-        lastName: userProfile.lastName,
-        avatarUrl: userProfile.avatarUrl,
-    };
-
-    const bookingData = {
-        rideId: ride.id,
-        userId: user.uid,
-        passengerInfo: passengerData,
-    };
-    
-    const bookingsColRef = collection(firestore, 'bookings');
-    await addDocumentNonBlocking(bookingsColRef, bookingData);
-    fetchBookings(); 
-
-    toast({
+  
+    try {
+      const idToken = await user.getIdToken();
+      await bookRide({ rideId: ride.id, idToken });
+      
+      toast({
         title: "Seat Booked!",
         description: "You have successfully booked a seat for this ride.",
-    });
+      });
+      fetchBookings(); // Refresh the bookings list
+  
+    } catch (error: any) {
+      console.error("Error booking ride:", error);
+      toast({
+        variant: "destructive",
+        title: "Booking Failed",
+        description: error.message || "An unexpected error occurred while booking.",
+      });
+    }
   };
 
   const handleCancelBooking = async () => {
@@ -150,14 +126,12 @@ export default function RideDetailPage() {
       return;
     }
     
-    const bookingDocRef = doc(firestore, 'bookings', userBooking.id);
-    await deleteDocumentNonBlocking(bookingDocRef);
-    fetchBookings();
-  
+    // We will need a server-side function for this as well for security.
+    // For now, let's assume it's not implemented, but this is where it would go.
     toast({
-      title: "Booking Cancelled",
-      description: "Your booking has been successfully cancelled."
-    });
+        title: "Cancellation not implemented",
+        description: "The cancellation flow needs to be implemented securely on the backend."
+    })
   };
   
   const isLoading = isRideLoading || areBookingsLoading;
