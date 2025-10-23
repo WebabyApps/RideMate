@@ -31,7 +31,7 @@ import { PassengerList } from "@/components/profile/passenger-list";
 import { bookRide } from "@/ai/flows/book-ride";
 
 export default function RideDetailPage() {
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
   const router = useRouter();
   const firestore = useFirestore();
   const params = useParams();
@@ -47,11 +47,19 @@ export default function RideDetailPage() {
 
   const { data: ride, isLoading: isRideLoading } = useDoc<Ride>(rideDocRef);
 
+  const userDocRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, 'users', user.uid);
+  }, [firestore, user]);
+  
+  const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userDocRef);
+
+
   const fetchBookings = useCallback(async () => {
     if (!firestore || !rideId) return;
     setAreBookingsLoading(true);
     try {
-        const bookingsQuery = query(collection(firestore, 'bookings'), where('rideId', '==', rideId));
+        const bookingsQuery = query(collection(firestore, 'rides', rideId, 'bookings'));
         const snapshot = await getDocs(bookingsQuery);
         const bookingData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Booking));
         setBookings(bookingData);
@@ -73,7 +81,7 @@ export default function RideDetailPage() {
   }, [fetchBookings]);
 
   const handleBookSeat = async () => {
-    if (!user || user.isAnonymous) {
+    if (!user || user.isAnonymous || !userProfile) {
       toast({
         title: "Please Sign In",
         description: "You need to have a full account to book a ride.",
@@ -93,8 +101,11 @@ export default function RideDetailPage() {
     }
   
     try {
-      const idToken = await user.getIdToken();
-      await bookRide({ rideId: ride.id, idToken });
+      await bookRide({
+        rideId: ride.id,
+        userId: user.uid,
+        userProfile: userProfile,
+      });
       
       toast({
         title: "Seat Booked!",
@@ -134,8 +145,8 @@ export default function RideDetailPage() {
     })
   };
   
-  const isLoading = isRideLoading || areBookingsLoading;
-  const availableSeats = ride ? ride.totalSeats - (bookings?.length || 0) : 0;
+  const isLoading = isRideLoading || areBookingsLoading || isProfileLoading || isUserLoading;
+  const availableSeats = ride ? ride.availableSeats : 0;
 
   if (isLoading) {
     return (
