@@ -47,14 +47,6 @@ export default function RideDetailPage() {
 
   const { data: ride, isLoading: isRideLoading } = useDoc<Ride>(rideDocRef);
 
-  const userDocRef = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return doc(firestore, 'users', user.uid);
-  }, [firestore, user]);
-  
-  const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userDocRef);
-
-
   const fetchBookings = useCallback(async () => {
     if (!firestore || !rideId) return;
     setAreBookingsLoading(true);
@@ -74,7 +66,7 @@ export default function RideDetailPage() {
     } finally {
         setAreBookingsLoading(false);
     }
-  }, [firestore, rideId]);
+  }, [firestore, rideId, toast]);
 
   useEffect(() => {
       fetchBookings();
@@ -102,9 +94,13 @@ export default function RideDetailPage() {
 
     startBookingTransition(async () => {
        try {
+        const idToken = await user.getIdToken();
         const response = await fetch('/api/book-ride', {
           method: 'POST',
-          headers: {'Content-Type': 'application/json'},
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`,
+          },
           body: JSON.stringify({ rideId: ride.id }),
         });
 
@@ -139,7 +135,7 @@ export default function RideDetailPage() {
     })
   };
   
-  const isLoading = isRideLoading || areBookingsLoading || isProfileLoading || isUserLoading;
+  const isLoading = isRideLoading || areBookingsLoading || isUserLoading;
   const availableSeats = ride ? ride.availableSeats : 0;
 
   if (isLoading) {

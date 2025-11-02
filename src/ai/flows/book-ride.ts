@@ -41,7 +41,8 @@ export const bookRide = ai.defineFlow(
 
         // Check if user has already booked this ride by querying the bookings subcollection
         const existingBookingsQuery = db
-          .collection(`rides/${rideId}/bookings`)
+          .collectionGroup('bookings')
+          .where('rideId', '==', rideId)
           .where('userId', '==', userId)
           .limit(1);
           

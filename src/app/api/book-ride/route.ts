@@ -17,6 +17,10 @@ async function getAuthenticatedUser() {
   }
   const idToken = authorization.split('Bearer ')[1];
   try {
+    // Ensure admin is initialized before using it
+    if (admin.apps.length === 0) {
+      await getDb(); // This will call initialize() if needed
+    }
     const decodedToken = await admin.auth().verifyIdToken(idToken);
     return decodedToken;
   } catch (error) {

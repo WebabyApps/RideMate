@@ -8,9 +8,12 @@ service cloud.firestore {
     }
 
     match /rides/{rideId} {
-      // Allow any authenticated user to read rides and update them (for booking).
+      // Allow any authenticated user to read rides.
       allow read: if request.auth != null;
+      // Allow creating rides
       allow create: if request.auth != null;
+
+      // Allow updating rides (for booking seat count)
       allow update: if request.auth != null;
 
       // Rules for the bookings subcollection
