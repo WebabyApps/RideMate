@@ -1,37 +1,35 @@
 import * as admin from 'firebase-admin';
+import { ServiceAccount } from 'firebase-admin';
 
 let db: admin.firestore.Firestore;
 
-async function initialize() {
+async function initializeAdminApp() {
   if (admin.apps.length > 0) {
-    db = admin.firestore();
-    return;
+    return admin.app();
+  }
+
+  const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+  if (!serviceAccountKey) {
+      throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY environment variable is not set. Cannot initialize Admin SDK.');
   }
 
   try {
-    const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-    if (serviceAccountKey) {
-      // Initialize with service account key if provided (local dev)
-      admin.initializeApp({
-        credential: admin.credential.cert(JSON.parse(serviceAccountKey)),
-      });
-    } else {
-      // Initialize with Application Default Credentials (deployed environment)
-      admin.initializeApp();
-    }
-  } catch (e) {
+    const serviceAccount: ServiceAccount = JSON.parse(serviceAccountKey);
+    return admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+    });
+  } catch (e: any) {
     console.error('Firebase Admin initialization error:', e);
     throw new Error(
-      'Firebase Admin SDK initialization failed. Ensure your environment is configured with the correct credentials.'
+      'Firebase Admin SDK initialization failed. Ensure your FIREBASE_SERVICE_ACCOUNT_KEY is a valid JSON string.'
     );
   }
-
-  db = admin.firestore();
 }
 
-export async function getDb() {
+export async function getDb(): Promise<admin.firestore.Firestore> {
   if (!db) {
-    await initialize();
+    await initializeAdminApp();
+    db = admin.firestore();
   }
   return db;
 }

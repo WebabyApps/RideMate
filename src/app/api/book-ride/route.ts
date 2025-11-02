@@ -17,10 +17,8 @@ async function getAuthenticatedUser() {
   }
   const idToken = authorization.split('Bearer ')[1];
   try {
-    // Ensure admin is initialized before using it
-    if (admin.apps.length === 0) {
-      await getDb(); // This will call initialize() if needed
-    }
+    // This will implicitly use the initialized admin app from getDb()
+    await getDb(); 
     const decodedToken = await admin.auth().verifyIdToken(idToken);
     return decodedToken;
   } catch (error) {
@@ -35,7 +33,18 @@ async function getUserProfile(userId: string): Promise<UserProfile | null> {
     if (!userDoc.exists) {
         return null;
     }
-    return userDoc.data() as UserProfile;
+    const data = userDoc.data()
+    if (!data) return null;
+    
+    // Ensure all required fields are present
+    return {
+        id: userId,
+        firstName: data.firstName || '',
+        lastName: data.lastName || '',
+        email: data.email || '',
+        avatarUrl: data.avatarUrl || '',
+        rating: data.rating || 0,
+    };
 }
 
 
@@ -71,9 +80,6 @@ export async function POST(req: Request) {
     });
   } catch (error: any) {
     console.error('API Route Error:', error);
-    if (error.stack) {
-      console.error(error.stack);
-    }
     return NextResponse.json(
       {message: error.message || 'An unexpected error occurred.'},
       {status: 500}

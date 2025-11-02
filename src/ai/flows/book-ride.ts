@@ -1,3 +1,5 @@
+'use server';
+
 /**
  * @fileOverview A server-side flow to handle the booking of a ride.
  * This flow runs with admin privileges and is responsible for atomically
@@ -8,13 +10,12 @@ import {ai} from '@/ai/getAI';
 import {
   BookRideInputSchema,
   type BookRideInput,
-  type UserProfile,
 } from '@/lib/types';
 import {getDb} from '@/lib/admin';
 import {z} from 'genkit';
 import {FieldValue} from 'firebase-admin/firestore';
 
-export const bookRide = ai.defineFlow(
+export const bookRideFlow = ai.defineFlow(
   {
     name: 'bookRideFlow',
     inputSchema: BookRideInputSchema,
@@ -25,7 +26,7 @@ export const bookRide = ai.defineFlow(
     const {rideId, userId, userProfile} = input;
 
     const rideRef = db.doc(`rides/${rideId}`);
-    const bookingRef = db.collection(`rides/${rideId}/bookings`).doc(); // Auto-generate ID
+    const bookingRef = db.collection(`rides/${rideId}/bookings`).doc(userId); // Use user ID for booking ID to prevent duplicates
 
     try {
       await db.runTransaction(async transaction => {
@@ -35,19 +36,13 @@ export const bookRide = ai.defineFlow(
         }
 
         const rideData = rideDoc.data();
-        if (rideData?.availableSeats <= 0) {
+        if (!rideData || rideData.availableSeats <= 0) {
           throw new Error('No available seats on this ride.');
         }
 
-        // Check if user has already booked this ride by querying the bookings subcollection
-        const existingBookingsQuery = db
-          .collectionGroup('bookings')
-          .where('rideId', '==', rideId)
-          .where('userId', '==', userId)
-          .limit(1);
-          
-        const existingBookingsSnapshot = await transaction.get(existingBookingsQuery);
-        if (!existingBookingsSnapshot.empty) {
+        // Check if user has already booked this ride
+        const existingBookingDoc = await transaction.get(bookingRef);
+        if (existingBookingDoc.exists) {
             throw new Error('You have already booked a seat on this ride.');
         }
 
@@ -61,6 +56,7 @@ export const bookRide = ai.defineFlow(
             lastName: userProfile.lastName,
             avatarUrl: userProfile.avatarUrl,
           },
+          createdAt: FieldValue.serverTimestamp(),
         });
 
         transaction.update(rideRef, {
@@ -76,3 +72,8 @@ export const bookRide = ai.defineFlow(
     }
   }
 );
+
+
+export async function bookRide(input: BookRideInput): Promise<{success: boolean}> {
+    return bookRideFlow(input);
+}
