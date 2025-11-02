@@ -1,5 +1,3 @@
-'use server';
-
 /**
  * @fileOverview A server-side flow to handle the booking of a ride.
  * This flow runs with admin privileges and is responsible for atomically
