@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/logo';
 import { Menu, Car, User as UserIcon, LogOut } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import { useAuth, useUser } from '@/firebase';
@@ -19,6 +19,7 @@ const navLinks = [
 
 export function Header() {
   const pathname = usePathname();
+  const router = useRouter();
   const [isSheetOpen, setSheetOpen] = useState(false);
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
@@ -26,6 +27,7 @@ export function Header() {
   const handleLogout = async () => {
     await auth.signOut();
     setSheetOpen(false);
+    router.push('/');
   };
 
   const NavLink = ({ href, label }: { href: string; label: string }) => (
@@ -138,5 +140,3 @@ export function Header() {
     </header>
   );
 }
-
-    
