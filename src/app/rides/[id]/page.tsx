@@ -26,9 +26,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useTransition } from "react";
 import { PassengerList } from "@/components/profile/passenger-list";
-import { bookRide } from "@/ai/flows/book-ride";
 
 export default function RideDetailPage() {
   const { user, isUserLoading } = useUser();
@@ -36,6 +35,7 @@ export default function RideDetailPage() {
   const firestore = useFirestore();
   const params = useParams();
   const rideId = typeof params.id === 'string' ? params.id : '';
+  const [isBooking, startBookingTransition] = useTransition();
   
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [areBookingsLoading, setAreBookingsLoading] = useState(true);
@@ -59,7 +59,7 @@ export default function RideDetailPage() {
     if (!firestore || !rideId) return;
     setAreBookingsLoading(true);
     try {
-        const bookingsQuery = query(collection(firestore, 'rides', rideId, 'bookings'));
+        const bookingsQuery = query(collection(firestore, `rides/${rideId}/bookings`));
         const snapshot = await getDocs(bookingsQuery);
         const bookingData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Booking));
         setBookings(bookingData);
@@ -74,14 +74,14 @@ export default function RideDetailPage() {
     } finally {
         setAreBookingsLoading(false);
     }
-  }, [firestore, rideId, toast]);
+  }, [firestore, rideId]);
 
   useEffect(() => {
       fetchBookings();
   }, [fetchBookings]);
 
   const handleBookSeat = async () => {
-    if (!user || user.isAnonymous || !userProfile) {
+    if (!user || user.isAnonymous) {
       toast({
         title: "Please Sign In",
         description: "You need to have a full account to book a ride.",
@@ -99,49 +99,43 @@ export default function RideDetailPage() {
       });
       return;
     }
-  
-    try {
-      await bookRide({
-        rideId: ride.id,
-        userId: user.uid,
-        userProfile: userProfile,
-      });
-      
-      toast({
-        title: "Seat Booked!",
-        description: "You have successfully booked a seat for this ride.",
-      });
-      fetchBookings(); // Refresh the bookings list
-  
-    } catch (error: any) {
-      console.error("Error booking ride:", error);
-      toast({
-        variant: "destructive",
-        title: "Booking Failed",
-        description: error.message || "An unexpected error occurred while booking.",
-      });
-    }
+
+    startBookingTransition(async () => {
+       try {
+        const response = await fetch('/api/book-ride', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ rideId: ride.id }),
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.message || 'An unexpected error occurred.');
+        }
+        
+        toast({
+          title: "Seat Booked!",
+          description: "You have successfully booked a seat for this ride.",
+        });
+        fetchBookings(); // Refresh the bookings list
+    
+      } catch (error: any) {
+        console.error("Error booking ride:", error);
+        toast({
+          variant: "destructive",
+          title: "Booking Failed",
+          description: error.message || "An unexpected error occurred while booking.",
+        });
+      }
+    });
   };
 
   const handleCancelBooking = async () => {
-    if (!user || !firestore || !rideId) return;
-
-    const userBooking = bookings?.find(b => b.userId === user.uid);
-
-    if (!userBooking) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Could not find your booking to cancel."
-      });
-      return;
-    }
-    
-    // We will need a server-side function for this as well for security.
-    // For now, let's assume it's not implemented, but this is where it would go.
+    // This functionality is not fully implemented in this version.
     toast({
-        title: "Cancellation not implemented",
-        description: "The cancellation flow needs to be implemented securely on the backend."
+        title: "Cancellation not available",
+        description: "The ability to cancel a booking has not been implemented yet."
     })
   };
   
@@ -296,9 +290,9 @@ export default function RideDetailPage() {
                 size="lg" 
                 className="w-full text-lg font-bold bg-accent hover:bg-accent/90 text-accent-foreground" 
                 onClick={handleBookSeat} 
-                disabled={isRideFull || isUserTheDriver}
+                disabled={isRideFull || isUserTheDriver || isBooking}
               >
-                {isRideFull ? 'Ride Full' : 'Book a Seat'}
+                {isBooking ? 'Booking...' : isRideFull ? 'Ride Full' : 'Book a Seat'}
               </Button>
             )}
            </div>

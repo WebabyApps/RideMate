@@ -1,4 +1,3 @@
-'use server';
 /**
  * @fileOverview A server-side flow to handle the booking of a ride.
  * This flow runs with admin privileges and is responsible for atomically
@@ -13,6 +12,7 @@ import {
 } from '@/lib/types';
 import {getDb} from '@/lib/admin';
 import {z} from 'genkit';
+import {FieldValue} from 'firebase-admin/firestore';
 
 export const bookRide = ai.defineFlow(
   {
@@ -25,7 +25,7 @@ export const bookRide = ai.defineFlow(
     const {rideId, userId, userProfile} = input;
 
     const rideRef = db.doc(`rides/${rideId}`);
-    const bookingRef = db.collection(`rides/${rideId}/bookings`).doc(userId);
+    const bookingRef = db.collection(`rides/${rideId}/bookings`).doc(); // Auto-generate ID
 
     try {
       await db.runTransaction(async transaction => {
@@ -38,10 +38,16 @@ export const bookRide = ai.defineFlow(
         if (rideData?.availableSeats <= 0) {
           throw new Error('No available seats on this ride.');
         }
-        
-        const bookingDoc = await transaction.get(bookingRef);
-        if (bookingDoc.exists) {
-          throw new Error('You have already booked a seat on this ride.');
+
+        // Check if user has already booked this ride by querying the bookings subcollection
+        const existingBookingsQuery = db
+          .collection(`rides/${rideId}/bookings`)
+          .where('userId', '==', userId)
+          .limit(1);
+          
+        const existingBookingsSnapshot = await transaction.get(existingBookingsQuery);
+        if (!existingBookingsSnapshot.empty) {
+            throw new Error('You have already booked a seat on this ride.');
         }
 
         // Perform the writes
@@ -57,14 +63,14 @@ export const bookRide = ai.defineFlow(
         });
 
         transaction.update(rideRef, {
-          availableSeats: rideData.availableSeats - 1,
+          availableSeats: FieldValue.increment(-1),
         });
       });
 
       return {success: true};
     } catch (error: any) {
       console.error('Transaction failed: ', error);
-      // Re-throw the error to be caught by the client
+      // Re-throw the error to be caught by the API route
       throw new Error(error.message || 'Failed to book ride.');
     }
   }
