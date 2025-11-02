@@ -1,8 +1,32 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if true;
+    match /users/{userId} {
+      // Allow users to read any profile, but only write to their own.
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    match /rides/{rideId} {
+      // Allow any authenticated user to read rides and update them (for booking).
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null;
+
+      // Rules for the bookings subcollection
+      match /bookings/{bookingId} {
+        // Allow authenticated users to read the list of bookings for a ride.
+        allow list: if request.auth != null;
+        // Allow a user to create a booking for themselves.
+        allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+        // Allow a user to delete their own booking.
+        allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
+      }
+    }
+    
+    // Allow users to list their own bookings across all rides.
+    match /{path=**}/bookings/{bookingId} {
+      allow list: if request.auth != null && resource.data.userId == request.auth.uid;
     }
   }
 }

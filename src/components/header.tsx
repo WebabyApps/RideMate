@@ -27,7 +27,6 @@ export function Header() {
   const handleLogout = async () => {
     await auth.signOut();
     setSheetOpen(false);
-    router.push('/');
   };
 
   const NavLink = ({ href, label }: { href: string; label: string }) => (
