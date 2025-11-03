@@ -1,50 +1,41 @@
 import * as admin from 'firebase-admin';
-import { ServiceAccount } from 'firebase-admin';
+import type { ServiceAccount } from 'firebase-admin';
 
-let db: admin.firestore.Firestore;
-
-/**
- * Initializes the Firebase Admin SDK if not already initialized.
- * This function correctly handles both production (with service account key)
- * and local emulator (without credentials) environments.
- */
-function initializeAdminApp() {
-  if (admin.apps.length > 0) {
-    return;
-  }
-
+// This prevents re-initialization in hot-reload environments
+if (admin.apps.length === 0) {
   const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
 
   if (serviceAccountKey) {
-    // Production environment: Use service account credentials
+    // Production: use the service account key
     try {
       const serviceAccount: ServiceAccount = JSON.parse(serviceAccountKey);
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
       });
     } catch (e: any) {
-      console.error('Firebase Admin SDK initialization failed:', e.message);
-      throw new Error(
-        'Could not initialize Firebase Admin SDK. Ensure FIREBASE_SERVICE_ACCOUNT_KEY is a valid JSON string.'
-      );
+        console.error('Error parsing FIREBASE_SERVICE_ACCOUNT_KEY:', e.message);
+        throw new Error('Firebase Admin SDK initialization failed. Ensure your service account key is set correctly.');
     }
-  } else {
-    // Emulator environment: Initialize without credentials.
-    // The SDK will automatically connect to emulators if their respective
-    // environment variables (e.g., FIREBASE_AUTH_EMULATOR_HOST) are set.
-    console.log("Initializing Firebase Admin SDK for emulator environment.");
+  } else if (process.env.FIREBASE_AUTH_EMULATOR_HOST) {
+    // Local development: connect to emulators
+    // The SDK automatically detects emulator env vars (like FIREBASE_AUTH_EMULATOR_HOST)
+    // and connects. No credentials are required.
+    console.log("No service account key found. Initializing Admin SDK for local emulator environment.");
     admin.initializeApp();
+  } else {
+    // Fallback/Error case if no config is found
+    console.warn("Firebase Admin SDK is not configured. Missing FIREBASE_SERVICE_ACCOUNT_KEY for production or emulator variables for local development.");
   }
 }
 
+const db = admin.firestore();
+const auth = admin.auth();
+
+export { db, auth };
+
 /**
  * Returns a memoized instance of the Firestore database from the Admin SDK.
- * It initializes the admin app on the first call.
  */
 export function getDb(): admin.firestore.Firestore {
-  if (!db) {
-    initializeAdminApp();
-    db = admin.firestore();
-  }
   return db;
 }
