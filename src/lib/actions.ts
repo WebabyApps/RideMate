@@ -29,8 +29,8 @@ export async function bookRideAction(input: BookRideInput): Promise<{ success: b
 
   const rideRef = db.doc(`rides/${rideId}`);
   const userRef = db.doc(`users/${userId}`);
-  // Use a unique booking ID within the subcollection
-  const bookingRef = db.collection(`rides/${rideId}/bookings`).doc(); 
+  // This collection reference will be used to create a new doc inside the transaction
+  const bookingsColRef = db.collection(`rides/${rideId}/bookings`); 
 
   try {
     await db.runTransaction(async (transaction) => {
@@ -53,15 +53,17 @@ export async function bookRideAction(input: BookRideInput): Promise<{ success: b
       }
       
       // Check if user has already booked this ride
-      const existingBookingQuery = db.collection(`rides/${rideId}/bookings`).where('userId', '==', userId).limit(1);
+      const existingBookingQuery = bookingsColRef.where('userId', '==', userId).limit(1);
       const existingBookingSnapshot = await transaction.get(existingBookingQuery);
       if (!existingBookingSnapshot.empty) {
         throw new Error('You have already booked a seat on this ride.');
       }
 
+      // Generate a new document reference *within* the transaction for the new booking
+      const newBookingRef = bookingsColRef.doc();
 
       // Perform the writes
-      transaction.set(bookingRef, {
+      transaction.set(newBookingRef, {
         rideId: rideId,
         userId: userId,
         passengerInfo: {
