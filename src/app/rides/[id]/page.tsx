@@ -8,7 +8,7 @@ import { StarRating } from "@/components/star-rating";
 import { Calendar, Clock, Users, DollarSign, MessageSquare, AlertCircle, Dog, Briefcase } from "lucide-react";
 import { format } from 'date-fns';
 import { useUser, useFirestore, useMemoFirebase } from "@/firebase";
-import { doc, collection, query, where, getDocs } from "firebase/firestore";
+import { doc, collection, query, getDocs, runTransaction, serverTimestamp } from "firebase/firestore";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
 import { RideMap } from "@/components/ride-map";
@@ -51,7 +51,7 @@ export default function RideDetailPage() {
     if (!firestore || !rideId) return;
     setAreBookingsLoading(true);
     try {
-        const bookingsQuery = query(collection(firestore, `rides/${rideId}/bookings`));
+        const bookingsQuery = query(collection(firestore, 'rides', rideId, 'bookings'));
         const snapshot = await getDocs(bookingsQuery);
         const bookingData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Booking));
         setBookings(bookingData);
@@ -76,56 +76,85 @@ export default function RideDetailPage() {
 
   const handleBookSeat = async () => {
     if (!user || user.isAnonymous) {
-      toast({
-        title: "Please Sign In",
-        description: "You need to have a full account to book a ride.",
-        variant: "destructive"
-      });
-      router.push('/signup');
-      return;
+        toast({
+            title: "Please Sign In",
+            description: "You need to have a full account to book a ride.",
+            variant: "destructive",
+        });
+        router.push('/signup');
+        return;
+    }
+
+    if (!firestore || !rideId || !ride) {
+        toast({ variant: "destructive", title: "Error", description: "Cannot book ride at the moment." });
+        return;
     }
   
-    if (!ride) {
-      toast({
-        variant: "destructive",
-        title: "Ride not available",
-        description: "This ride is no longer available.",
-      });
-      return;
-    }
-
     startBookingTransition(async () => {
-       try {
-        const idToken = await user.getIdToken();
-        const response = await fetch('/api/book-ride', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${idToken}`,
-          },
-          body: JSON.stringify({ rideId: ride.id }),
-        });
+        try {
+            await runTransaction(firestore, async (transaction) => {
+                const rideRef = doc(firestore, 'rides', rideId);
+                const userRef = doc(firestore, 'users', user.uid);
 
-        const result = await response.json();
+                const rideDoc = await transaction.get(rideRef);
+                const userDoc = await transaction.get(userRef);
 
-        if (!response.ok) {
-          throw new Error(result.message || 'An unexpected error occurred.');
+                if (!rideDoc.exists()) {
+                    throw new Error("This ride no longer exists.");
+                }
+                
+                if (!userDoc.exists()) {
+                    throw new Error("Your user profile could not be found.");
+                }
+                
+                const rideData = rideDoc.data();
+                if (rideData.availableSeats <= 0) {
+                    throw new Error("Sorry, this ride is already full.");
+                }
+                
+                // Check for existing booking
+                const bookingsColRef = collection(firestore, `rides/${rideId}/bookings`);
+                const existingBookingQuery = query(bookingsColRef, where('userId', '==', user.uid));
+                const existingBookingSnapshot = await getDocs(existingBookingQuery);
+                
+                if (!existingBookingSnapshot.empty) {
+                    throw new Error("You have already booked a seat on this ride.");
+                }
+
+                // Create a new booking document
+                const newBookingRef = doc(bookingsColRef);
+                const userProfile = userDoc.data() as UserProfile;
+                transaction.set(newBookingRef, {
+                    rideId: rideId,
+                    userId: user.uid,
+                    passengerInfo: {
+                        id: user.uid,
+                        firstName: userProfile.firstName,
+                        lastName: userProfile.lastName,
+                        avatarUrl: userProfile.avatarUrl,
+                    },
+                    createdAt: serverTimestamp(),
+                });
+
+                // Decrement available seats
+                transaction.update(rideRef, {
+                    availableSeats: rideData.availableSeats - 1,
+                });
+            });
+
+            toast({
+                title: "Seat Booked!",
+                description: "You have successfully booked a seat for this ride.",
+            });
+            fetchBookings(); // Refresh bookings list
+        } catch (error: any) {
+            console.error("Booking transaction failed:", error);
+            toast({
+                variant: "destructive",
+                title: "Booking Failed",
+                description: error.message || "An unexpected error occurred.",
+            });
         }
-        
-        toast({
-          title: "Seat Booked!",
-          description: "You have successfully booked a seat for this ride.",
-        });
-        fetchBookings(); // Refresh the bookings list
-    
-      } catch (error: any) {
-        console.error("Error booking ride:", error);
-        toast({
-          variant: "destructive",
-          title: "Booking Failed",
-          description: error.message || "An unexpected error occurred while booking.",
-        });
-      }
     });
   };
 
