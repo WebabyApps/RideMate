@@ -11,6 +11,7 @@ import {
   OptimizeCarpoolRouteOutput,
   OptimizeCarpoolRouteOutputSchema,
 } from '@/lib/types';
+import {googleAI} from '@genkit-ai/google-genai';
 
 
 const optimizeCarpoolRouteFlow = ai.defineFlow(
@@ -22,6 +23,7 @@ const optimizeCarpoolRouteFlow = ai.defineFlow(
   async (input) => {
     const optimizeCarpoolRoutePrompt = ai.definePrompt({
         name: 'optimizeCarpoolRoutePrompt',
+        model: googleAI('gemini-1.5-flash-latest'),
         input: {schema: OptimizeCarpoolRouteInputSchema},
         output: {schema: OptimizeCarpoolRouteOutputSchema},
         prompt: `You are a world-class route optimization expert specializing in creating efficient and cost-effective carpool routes. Your primary goal is to determine the optimal order of visiting waypoints and suggest the best departure time to meet all constraints.
