@@ -14,7 +14,6 @@ import { ModeToggle } from './mode-toggle';
 const navLinks = [
   { href: '/rides', label: 'Find a Ride' },
   { href: '/offer-ride', label: 'Offer a Ride' },
-  { href: '/optimize-route', label: 'Optimize Route' },
 ];
 
 export function Header() {
