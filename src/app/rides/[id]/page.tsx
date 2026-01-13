@@ -8,7 +8,7 @@ import { StarRating } from "@/components/star-rating";
 import { Calendar, Clock, Users, DollarSign, MessageSquare, AlertCircle, Dog, Briefcase } from "lucide-react";
 import { format } from 'date-fns';
 import { useUser, useFirestore, useMemoFirebase } from "@/firebase";
-import { doc, collection, query, getDocs, runTransaction, serverTimestamp } from "firebase/firestore";
+import { doc, collection, query, getDocs, runTransaction, serverTimestamp, where } from "firebase/firestore";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
 import { RideMap } from "@/components/ride-map";
@@ -66,7 +66,7 @@ export default function RideDetailPage() {
     } finally {
         setAreBookingsLoading(false);
     }
-  }, [firestore, rideId, toast]);
+  }, [firestore, rideId]);
 
   useEffect(() => {
       if (rideId) {
