@@ -113,7 +113,7 @@ const MapComponent: React.FC<WaypointMapProps> = ({ waypoints, onMapClick, activ
           map.setZoom(12);
         }
       });
-    } else {
+    } else if (validWaypoints.length > 1) {
       const directionsService = new google.maps.DirectionsService();
       const origin = validWaypoints[0];
       const destination = validWaypoints[validWaypoints.length - 1];
