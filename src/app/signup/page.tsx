@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useEffect } from "react";
-import { doc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
 
 import { Button } from "@/components/ui/button"
@@ -28,7 +28,6 @@ import { Input } from "@/components/ui/input"
 import { Logo } from "@/components/logo"
 import { useAuth, useFirestore, useUser } from "@/firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { setDocumentNonBlocking } from "@/firebase";
 
 const signupSchema = z.object({
   fullName: z.string().min(3, "Full name must be at least 3 characters."),
@@ -54,45 +53,45 @@ export default function SignupPage() {
   });
 
   useEffect(() => {
-    if (!isUserLoading && user) {
+    if (!isUserLoading && user && !user.isAnonymous) {
       router.push('/profile');
     }
   }, [user, isUserLoading, router]);
 
-  function onSubmit(data: z.infer<typeof signupSchema>) {
-    createUserWithEmailAndPassword(auth, data.email, data.password)
-      .then(userCredential => {
-        const user = userCredential.user;
-        const [firstName, ...lastName] = data.fullName.split(' ');
-        const userProfile = {
-          id: user.uid,
-          firstName: firstName || '',
-          lastName: lastName.join(' ') || '',
-          email: user.email,
-          phoneNumber: user.phoneNumber || '',
-          rating: 0,
-          avatarUrl: `https://picsum.photos/seed/${user.uid}/200/200`
-        };
-        
-        const userDocRef = doc(firestore, "users", user.uid);
-        // This is a non-blocking call
-        setDocumentNonBlocking(userDocRef, userProfile, { merge: true });
+  async function onSubmit(data: z.infer<typeof signupSchema>) {
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
+      const user = userCredential.user;
+      const [firstName, ...lastName] = data.fullName.split(' ');
+      const userProfile = {
+        id: user.uid,
+        firstName: firstName || '',
+        lastName: lastName.join(' ') || '',
+        email: user.email,
+        phoneNumber: user.phoneNumber || '',
+        rating: 0,
+        avatarUrl: `https://picsum.photos/seed/${user.uid}/200/200`
+      };
+      
+      const userDocRef = doc(firestore, "users", user.uid);
+      await setDoc(userDocRef, userProfile);
 
-        // Since we don't wait, we can navigate right away.
-        // The onAuthStateChanged listener will eventually pick up the new user
-        // and the profile page will render correctly.
-      })
-      .catch((error) => {
-        console.error("Error signing up:", error);
-        toast({
-            variant: "destructive",
-            title: "Sign Up Failed",
-            description: error.message || "An unexpected error occurred during sign up.",
-        });
+      toast({
+        title: "Account Created!",
+        description: "Welcome to RideMate!",
       });
+
+    } catch (error: any) {
+      console.error("Error signing up:", error);
+      toast({
+          variant: "destructive",
+          title: "Sign Up Failed",
+          description: error.message || "An unexpected error occurred during sign up.",
+      });
+    }
   }
   
-  if (isUserLoading || user) {
+  if (isUserLoading || (user && !user.isAnonymous)) {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-8rem)]">
         <p>Loading...</p>
