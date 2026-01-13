@@ -34,6 +34,7 @@ import type { UserProfile, OptimizeCarpoolRouteOutput } from "@/lib/types";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal } from 'lucide-react';
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 
 const rideSchema = z.object({
   origin: z.string().min(3, "Origin must be at least 3 characters long."),
