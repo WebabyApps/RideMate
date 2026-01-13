@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useMemo, useCallback, useTransition } from "react";
-import { collection, serverTimestamp, doc, getDoc } from 'firebase/firestore';
+import { collection, serverTimestamp, doc, setDoc, getDoc } from 'firebase/firestore';
 
 import { Button } from "@/components/ui/button";
 import {
@@ -155,23 +155,44 @@ export default function OfferRidePage() {
   };
 
   async function onPostRideSubmit(data: z.infer<typeof rideSchema>) {
-    if (!user) {
+    if (!user || !firestore) {
       toast({ variant: "destructive", title: "Authentication Error", description: "You must be logged in to offer a ride." });
       return;
     }
     
-    // Ensure we have the user profile, fetching it if necessary
     let userProfile = userProfileFromHook;
-    if (!userProfile && userDocRef) {
-        const userDoc = await getDoc(userDocRef);
+
+    // If profile is not loaded from hook, fetch it directly.
+    if (!userProfile) {
+        const userDoc = await getDoc(doc(firestore, 'users', user.uid));
         if (userDoc.exists()) {
             userProfile = { id: userDoc.id, ...userDoc.data() } as UserProfile;
         }
     }
-    
+
+    // If profile still not found, create it "just-in-time".
     if (!userProfile) {
-        toast({ variant: "destructive", title: "Authentication Error", description: "Could not find user profile. Please try again." });
-        return;
+        try {
+            const [firstName] = user.email ? user.email.split('@') : ['New'];
+            const newUserProfile: UserProfile = {
+                id: user.uid,
+                firstName: user.displayName || firstName,
+                lastName: '',
+                email: user.email || '',
+                avatarUrl: user.photoURL || `https://picsum.photos/seed/${user.uid}/200/200`,
+                rating: 0,
+            };
+            await setDoc(doc(firestore, "users", user.uid), newUserProfile);
+            userProfile = newUserProfile; // Assign the newly created profile
+            toast({
+                title: "Profile Created",
+                description: "We've set up a basic profile for you.",
+            });
+        } catch (error) {
+            console.error("Error creating user profile on-the-fly:", error);
+            toast({ variant: "destructive", title: "Profile Error", description: "Could not create your user profile. Please try again." });
+            return;
+        }
     }
 
     const [hours, minutes] = data.departureTime.split(':').map(Number);
