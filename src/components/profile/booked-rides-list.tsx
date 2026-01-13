@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { collection, query, where, getDocs, doc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, writeBatch, Unsubscribe, onSnapshot } from 'firebase/firestore';
 import { useFirestore, useUser } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import type { Ride, Booking } from '@/lib/types';
@@ -31,12 +31,13 @@ export function BookedRidesList() {
     const [bookedRides, setBookedRides] = useState<{ride: Ride, bookingId: string}[] | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
-    const fetchBookedRides = useCallback(async () => {
+    useEffect(() => {
         if (!firestore || !user) return;
+
         setIsLoading(true);
-        try {
-            const bookingsQuery = query(collection(firestore, 'bookings'), where('userId', '==', user.uid));
-            const bookingsSnapshot = await getDocs(bookingsQuery);
+        const bookingsQuery = query(collection(firestore, 'bookings'), where('userId', '==', user.uid));
+
+        const unsubscribe: Unsubscribe = onSnapshot(bookingsQuery, async (bookingsSnapshot) => {
             const userBookings = bookingsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Booking));
 
             if (userBookings.length === 0) {
@@ -52,46 +53,63 @@ export function BookedRidesList() {
               setIsLoading(false);
               return;
             }
-
-            const ridesQuery = query(collection(firestore, 'rides'), where('__name__', 'in', rideIds));
-            const ridesSnapshot = await getDocs(ridesQuery);
-            const ridesMap = new Map(ridesSnapshot.docs.map(doc => [doc.id, { id: doc.id, ...doc.data() } as Ride]));
-
-            const combinedData = userBookings.map(booking => {
-                const ride = ridesMap.get(booking.rideId);
-                return ride ? { ride, bookingId: booking.id } : null;
-            }).filter(item => item !== null) as { ride: Ride, bookingId: string }[];
             
-            combinedData.sort((a, b) => {
-              const timeA = a.ride.departureTime?.toDate?.().getTime() || 0;
-              const timeB = b.ride.departureTime?.toDate?.().getTime() || 0;
-              return timeB - timeA;
-            });
+            try {
+                const ridesQuery = query(collection(firestore, 'rides'), where('__name__', 'in', rideIds));
+                const ridesSnapshot = await getDocs(ridesQuery);
+                const ridesMap = new Map(ridesSnapshot.docs.map(doc => [doc.id, { id: doc.id, ...doc.data() } as Ride]));
 
-            setBookedRides(combinedData);
+                const combinedData = userBookings.map(booking => {
+                    const ride = ridesMap.get(booking.rideId);
+                    return ride ? { ride, bookingId: booking.id } : null;
+                }).filter(item => item !== null && item.ride.departureTime && item.ride.departureTime.toDate() > new Date()) as { ride: Ride, bookingId: string }[];
+                
+                combinedData.sort((a, b) => {
+                  const timeA = a.ride.departureTime?.toDate?.().getTime() || 0;
+                  const timeB = b.ride.departureTime?.toDate?.().getTime() || 0;
+                  return timeB - timeA;
+                });
 
-        } catch (error) {
-            console.error("Error fetching booked rides:", error);
+                setBookedRides(combinedData);
+            } catch (error) {
+                console.error("Error fetching ride details for bookings:", error);
+                 toast({
+                    variant: "destructive",
+                    title: "Error",
+                    description: "Could not fetch details for your booked rides.",
+                });
+            } finally {
+                setIsLoading(false);
+            }
+
+        }, (error) => {
+            console.error("Error listening to bookings:", error);
             toast({
                 variant: "destructive",
                 title: "Error",
                 description: "Could not fetch your booked rides.",
             });
-        } finally {
             setIsLoading(false);
-        }
-    }, [firestore, user, toast]);
+        });
 
-    useEffect(() => {
-        fetchBookedRides();
-    }, [fetchBookedRides]);
+        return () => unsubscribe();
+    }, [firestore, user, toast]);
 
     const handleCancelBooking = async (bookingId: string) => {
         if (!firestore) return;
+
         const bookingDocRef = doc(firestore, 'bookings', bookingId);
+        const bookingData = bookedRides?.find(br => br.bookingId === bookingId);
+        if (!bookingData) return;
+
+        const rideRef = doc(firestore, 'rides', bookingData.ride.id);
+
+        const batch = writeBatch(firestore);
+        batch.delete(bookingDocRef);
+        batch.update(rideRef, { availableSeats: bookingData.ride.availableSeats + 1 });
+        
         try {
-            await deleteDocumentNonBlocking(bookingDocRef);
-            setBookedRides(prev => prev?.filter(br => br.bookingId !== bookingId) || null);
+            await batch.commit();
             toast({
                 title: "Booking Cancelled",
                 description: "You have successfully cancelled your booking.",

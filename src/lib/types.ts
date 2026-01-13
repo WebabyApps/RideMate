@@ -55,11 +55,13 @@ export type Message = {
 export const OptimizeCarpoolRouteInputSchema = z.object({
   currentRoute: z
     .string()
+    .optional()
     .describe(
       'A general text description of the carpool plan or goal (e.g., "morning commute to work").'
     ),
   trafficConditions: z
     .string()
+    .optional()
     .describe(
       'Real-time traffic conditions along the general route area (e.g., "heavy congestion on the main highway").'
     ),
@@ -70,6 +72,7 @@ export const OptimizeCarpoolRouteInputSchema = z.object({
     ),
   arrivalTimePreferences: z
     .string()
+    .optional()
     .describe(
       'Text description of preferred arrival times for each participant (e.g., "Alice needs to be at work by 8:45 AM, Bob is flexible but prefers before 9:15 AM").'
     ),

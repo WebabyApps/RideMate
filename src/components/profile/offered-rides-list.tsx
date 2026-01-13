@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { collection, query, where, getDocs, doc, writeBatch } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, writeBatch, Unsubscribe, onSnapshot } from 'firebase/firestore';
 import { useFirestore, useUser } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import type { Ride } from '@/lib/types';
@@ -33,15 +33,16 @@ export function OfferedRidesList() {
     const [userRides, setUserRides] = useState<Ride[] | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
-    const fetchRides = useCallback(async () => {
+     useEffect(() => {
         if (!firestore || !user) return;
         setIsLoading(true);
-        try {
-            const ridesQuery = query(
-              collection(firestore, 'rides'), 
-              where('offererId', '==', user.uid)
-            );
-            const snapshot = await getDocs(ridesQuery);
+
+        const ridesQuery = query(
+            collection(firestore, 'rides'), 
+            where('offererId', '==', user.uid)
+        );
+
+        const unsubscribe: Unsubscribe = onSnapshot(ridesQuery, (snapshot) => {
             const rides = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Ride));
             
             rides.sort((a, b) => {
@@ -49,23 +50,20 @@ export function OfferedRidesList() {
               const timeB = b.departureTime?.toDate?.().getTime() || 0;
               return timeB - timeA;
             });
-
             setUserRides(rides);
-        } catch (error) {
+            setIsLoading(false);
+        }, (error) => {
             console.error("Error fetching offered rides:", error);
             toast({
                 variant: "destructive",
                 title: "Error fetching rides",
                 description: "Could not fetch your offered rides.",
             });
-        } finally {
             setIsLoading(false);
-        }
+        });
+
+        return () => unsubscribe();
     }, [firestore, user, toast]);
-    
-    useEffect(() => {
-        fetchRides();
-    }, [fetchRides]);
 
     const handleCancelRide = async (rideId: string) => {
         if (!firestore) return;
@@ -75,7 +73,7 @@ export function OfferedRidesList() {
         const rideDocRef = doc(firestore, 'rides', rideId);
         batch.delete(rideDocRef);
 
-        const bookingsQuery = query(collection(firestore, 'bookings'), where('rideId', '==', rideId));
+        const bookingsQuery = query(collection(firestore, `rides/${rideId}/bookings`));
         const bookingsSnapshot = await getDocs(bookingsQuery);
         bookingsSnapshot.forEach(bookingDoc => {
             batch.delete(bookingDoc.ref);
@@ -83,7 +81,7 @@ export function OfferedRidesList() {
 
         try {
             await batch.commit();
-            setUserRides(prevRides => prevRides?.filter(ride => ride.id !== rideId) || null);
+            // No need to manually update state, onSnapshot will do it.
             toast({
                 title: "Ride Cancelled",
                 description: "You have successfully cancelled the ride and all its bookings.",

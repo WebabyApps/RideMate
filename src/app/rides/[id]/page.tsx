@@ -45,7 +45,7 @@ export default function RideDetailPage() {
     return doc(firestore, 'rides', rideId);
   }, [firestore, rideId]);
 
-  const { data: ride, isLoading: isRideLoading } = useDoc<Ride>(rideDocRef);
+  const { data: ride, isLoading: isRideLoading, error: rideError } = useDoc<Ride>(rideDocRef);
 
   const fetchBookings = useCallback(async () => {
     if (!firestore || !rideId) return;
@@ -69,8 +69,10 @@ export default function RideDetailPage() {
   }, [firestore, rideId, toast]);
 
   useEffect(() => {
-      fetchBookings();
-  }, [fetchBookings]);
+      if (rideId) {
+        fetchBookings();
+      }
+  }, [rideId, fetchBookings]);
 
   const handleBookSeat = async () => {
     if (!user || user.isAnonymous) {
@@ -156,7 +158,7 @@ export default function RideDetailPage() {
     );
   }
   
-  if (!ride) {
+  if (!ride || rideError) {
     return (
         <div className="container mx-auto max-w-2xl px-4 md:px-6 py-12 text-center">
             <Card className="p-8">
