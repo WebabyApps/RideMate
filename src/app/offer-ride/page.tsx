@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useMemo, useCallback, useTransition } from "react";
-import { collection, serverTimestamp, doc } from 'firebase/firestore';
+import { collection, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 
 import { Button } from "@/components/ui/button";
 import {
@@ -67,7 +67,7 @@ export default function OfferRidePage() {
     return doc(firestore, 'users', user.uid);
   }, [firestore, user]);
 
-  const { data: userProfile } = useDoc<UserProfile>(userDocRef);
+  const { data: userProfileFromHook } = useDoc<UserProfile>(userDocRef);
 
   const form = useForm<z.infer<typeof rideSchema>>({
     resolver: zodResolver(rideSchema),
@@ -154,10 +154,24 @@ export default function OfferRidePage() {
     });
   };
 
-  function onPostRideSubmit(data: z.infer<typeof rideSchema>) {
-    if (!user || !userProfile) {
+  async function onPostRideSubmit(data: z.infer<typeof rideSchema>) {
+    if (!user) {
       toast({ variant: "destructive", title: "Authentication Error", description: "You must be logged in to offer a ride." });
       return;
+    }
+    
+    // Ensure we have the user profile, fetching it if necessary
+    let userProfile = userProfileFromHook;
+    if (!userProfile && userDocRef) {
+        const userDoc = await getDoc(userDocRef);
+        if (userDoc.exists()) {
+            userProfile = { id: userDoc.id, ...userDoc.data() } as UserProfile;
+        }
+    }
+    
+    if (!userProfile) {
+        toast({ variant: "destructive", title: "Authentication Error", description: "Could not find user profile. Please try again." });
+        return;
     }
 
     const [hours, minutes] = data.departureTime.split(':').map(Number);
