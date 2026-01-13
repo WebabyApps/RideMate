@@ -37,10 +37,8 @@ export default function RidesPage() {
     if (!firestore) return;
     setIsLoading(true);
     try {
-      const ridesQuery = query(
-        collection(firestore, 'rides'),
-        where('departureTime', '>', Timestamp.now())
-      );
+      // The query is now simpler, fetching all documents in the 'rides' collection.
+      const ridesQuery = query(collection(firestore, 'rides'));
       const querySnapshot = await getDocs(ridesQuery);
       const ridesData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Ride));
       setAllRides(ridesData);
@@ -64,7 +62,10 @@ export default function RidesPage() {
     }
     let processedRides = [...allRides];
 
+    // This client-side filter is applied only when "Show all" is NOT checked.
     if (!showAll) {
+        processedRides = processedRides.filter(ride => ride.departureTime && ride.departureTime.toDate() > new Date());
+        
         if (originFilter) {
           processedRides = processedRides.filter(ride =>
             ride.origin.toLowerCase().includes(originFilter.toLowerCase())
