@@ -1,13 +1,13 @@
+
 import 'server-only';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import {NextResponse} from 'next/server';
 import * as admin from 'firebase-admin';
-import {getDb} from '@/lib/admin';
-import {bookRide} from '@/ai/flows/book-ride';
-import {headers} from 'next/headers';
-
+import { getDb } from '@/lib/admin';
+import { bookRideAction } from '@/lib/actions';
+import { headers } from 'next/headers';
 
 async function getAuthenticatedUser() {
   const authorization = headers().get('Authorization');
@@ -40,7 +40,8 @@ export async function POST(req: Request) {
        return NextResponse.json({message: 'Unauthorized.'}, {status: 401});
     }
 
-    const result = await bookRide({
+    // Call the robust server action
+    const result = await bookRideAction({
         rideId,
         userId: decodedToken.uid,
     });
@@ -52,9 +53,10 @@ export async function POST(req: Request) {
     });
   } catch (error: any) {
     console.error('API Route Error:', error);
+    // Ensure that even if an error is thrown, the response is JSON
     return NextResponse.json(
       {message: error.message || 'An unexpected error occurred.'},
-      {status: 500}
+      {status: error.message === 'No available seats on this ride.' || error.message === 'You have already booked a seat on this ride.' ? 409 : 500}
     );
   }
 }
