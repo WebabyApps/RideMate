@@ -7,7 +7,6 @@ import * as admin from 'firebase-admin';
 import {getDb} from '@/lib/admin';
 import {bookRide} from '@/ai/flows/book-ride';
 import {headers} from 'next/headers';
-import type { UserProfile } from '@/lib/types';
 
 
 async function getAuthenticatedUser() {
@@ -27,27 +26,6 @@ async function getAuthenticatedUser() {
   }
 }
 
-async function getUserProfile(userId: string): Promise<UserProfile | null> {
-    const db = await getDb();
-    const userDoc = await db.doc(`users/${userId}`).get();
-    if (!userDoc.exists) {
-        return null;
-    }
-    const data = userDoc.data()
-    if (!data) return null;
-    
-    // Ensure all required fields are present
-    return {
-        id: userId,
-        firstName: data.firstName || '',
-        lastName: data.lastName || '',
-        email: data.email || '',
-        avatarUrl: data.avatarUrl || '',
-        rating: data.rating || 0,
-    };
-}
-
-
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -62,15 +40,9 @@ export async function POST(req: Request) {
        return NextResponse.json({message: 'Unauthorized.'}, {status: 401});
     }
 
-    const userProfile = await getUserProfile(decodedToken.uid);
-     if (!userProfile) {
-        return NextResponse.json({message: 'User profile not found.'}, {status: 404});
-    }
-
     const result = await bookRide({
         rideId,
         userId: decodedToken.uid,
-        userProfile: userProfile
     });
 
     return NextResponse.json({

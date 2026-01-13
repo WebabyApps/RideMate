@@ -8,6 +8,7 @@ import {ai} from '@/ai/getAI';
 import {
   BookRideInputSchema,
   type BookRideInput,
+  type UserProfile,
 } from '@/lib/types';
 import {getDb} from '@/lib/admin';
 import {z} from 'genkit';
@@ -21,19 +22,28 @@ export const bookRideFlow = ai.defineFlow(
   },
   async (input: BookRideInput) => {
     const db = await getDb();
-    const {rideId, userId, userProfile} = input;
+    const {rideId, userId} = input;
 
     const rideRef = db.doc(`rides/${rideId}`);
     const bookingRef = db.collection(`rides/${rideId}/bookings`).doc(userId); // Use user ID for booking ID to prevent duplicates
+    const userRef = db.doc(`users/${userId}`);
 
     try {
       await db.runTransaction(async transaction => {
         const rideDoc = await transaction.get(rideRef);
+        const userDoc = await transaction.get(userRef);
+
         if (!rideDoc.exists) {
           throw new Error('Ride not found or does not exist.');
         }
 
+        if (!userDoc.exists) {
+            throw new Error('Could not find user profile to complete booking.');
+        }
+
+        const userProfile = userDoc.data() as UserProfile;
         const rideData = rideDoc.data();
+
         if (!rideData || rideData.availableSeats <= 0) {
           throw new Error('No available seats on this ride.');
         }

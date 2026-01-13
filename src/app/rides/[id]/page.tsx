@@ -28,7 +28,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useEffect, useState, useCallback, useTransition } from "react";
 import { PassengerList } from "@/components/profile/passenger-list";
-import { bookRide } from "@/ai/flows/book-ride";
 
 export default function RideDetailPage() {
   const { user, isUserLoading } = useUser();

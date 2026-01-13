@@ -98,19 +98,9 @@ export const OptimizeCarpoolRouteOutputSchema = z.object({
     ),
 });
 
-export const UserProfileSchema = z.object({
-  id: z.string(),
-  firstName: z.string(),
-  lastName: z.string(),
-  email: z.string().email(),
-  avatarUrl: z.string().url(),
-  rating: z.number(),
-});
-
 export const BookRideInputSchema = z.object({
   rideId: z.string(),
   userId: z.string(),
-  userProfile: UserProfileSchema,
 });
 
 export type BookRideInput = z.infer<typeof BookRideInputSchema>;
